@@ -11,9 +11,6 @@
 #include<iostream>
 #include <algorithm>
 #include <cmath>
-#ifdef MAC
-#include "plplot/plplot.h"
-#endif
 #include <boost/variant.hpp>
 #include <map>
 #include <sstream>
