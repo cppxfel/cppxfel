@@ -273,9 +273,9 @@ void FileParser::generateFunctionList()
 	parserMap["INTENSITY_THRESHOLD"] = simpleFloat;
     parserMap["ABSOLUTE_INTENSITY"] = simpleBool;
 	parserMap["METROLOGY_SEARCH_SIZE"] = simpleInt;
-	parserMap["SHOEBOX_FOREGROUND_RADIUS"] = simpleInt;
-	parserMap["SHOEBOX_NEITHER_RADIUS"] = simpleInt;
-	parserMap["SHOEBOX_BACKGROUND_RADIUS"] = simpleInt;
+	parserMap["SHOEBOX_FOREGROUND_PADDING"] = simpleInt;
+	parserMap["SHOEBOX_NEITHER_PADDING"] = simpleInt;
+	parserMap["SHOEBOX_BACKGROUND_PADDING"] = simpleInt;
     parserMap["SHOEBOX_MAKE_EVEN"] = simpleBool;
     parserMap["COMPLEX_SHOEBOX"] = simpleBool;
     parserMap["MIN_INTEGRATED_RESOLUTION"] = simpleFloat;
