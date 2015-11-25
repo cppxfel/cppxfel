@@ -1,0 +1,23 @@
+ORIENTATION_MATRIX_LIST matrices.dat
+
+# Limit loading of images to the first X in orientation matrix list.
+# IMAGE_LIMIT 250
+
+# Maximum number of threads to be used during post-refinement
+MAX_THREADS 8
+
+# Instead of initial merge, use this MTZ file as a reference
+# INITIAL_MTZ reference.mtz
+
+# Images correlating with reference below this threshold are not included
+# in merge.
+CORRELATION_THRESHOLD 0.9
+
+# Reflections below this partiality should be rejected during merge.
+# Usually this can be set to 0.2/0.3. If you are very confident about
+# the data & model then lower this.
+PARTIALITY_CUTOFF 0.05
+
+COMMANDS
+
+REFINE_PARTIALITY
