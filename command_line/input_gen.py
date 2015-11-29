@@ -150,16 +150,11 @@ def dumpPanels(image):
 	print >>file, panelTxt.getvalue()
 	file.close()
 
-def dumpImages(imagePaths, shouldDump):
-	global panels
-	dumped = False
+def dumpImages(imagePaths):
 	for path in imagePaths:
+		print "Dumping image:", path
 		rootname = splitext(basename(path))[0]
 		db = dxtbx.load(path).get_detectorbase()
-		
-		if shouldDump and not dumped:
-			dumpPanels(path)
-			dumped = True
 		
 		data = db.get_raw_data()
 
@@ -204,6 +199,13 @@ thread_count = int(os.getenv('NSLOTS', 4))
 image_num = len(paths)
 images_per_thread = image_num / thread_count
 
+if (len(paths) == 0):
+	print "No images with matrices provided."
+	exit()
+
+print "Dumping panels from first image..."
+dumpPanels(paths[0])
+
 print "Total images ready for dumping: ", image_num
 
 for i in range(0, thread_count):
@@ -212,9 +214,8 @@ for i in range(0, thread_count):
 
 	print "Dumping", min, "to", max, " images on this thread"
 	images = paths[min:max]
-
-	shouldDump = (i == 0)
-	thread = Process(target=dumpImages, args=(images, shouldDump))
+	
+	thread = Process(target=dumpImages, args=(images, ))
 	threads.append(thread)
 	thread.start()
 
