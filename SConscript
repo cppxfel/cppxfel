@@ -23,7 +23,7 @@ if (not env_etc.no_boost_python and hasattr(env_etc, "boost_adaptbx_include")):
             env_etc.cppxfel_include])
     print env_etc.cppxfel_dist
     env.Append(
-		LIBS=env_etc.libm + ["scitbx_boost_python", "boost_thread-mt", "boost_system-mt",
+		LIBS=env_etc.libm + ["scitbx_boost_python", "boost_thread", "boost_system",
 		"boost_python",
 		"cctbx",
 		"ccp4io"])
@@ -46,6 +46,8 @@ source = [
 'source/Holder.cpp',
 'source/Image.cpp',
 'source/IOMRefiner.cpp',
+'source/IndexManager.cpp',
+'source/IndexingSolution.cpp',
 'source/InputFileParser.cpp',
 'source/Logger.cpp',
 'source/LoggableObject.cpp',
