@@ -407,7 +407,8 @@ double MtzManager::statisticsWithManager(MtzManager *otherManager,
 		statistic = rFactorFunction(rFactor, this, &hits, &multiplicity, lowRes,
 				highRes);
 
-    std::cout << "N: " << "lowRes\thighRes\tValue\tHits\tMultiplicity" << std::endl;
+    if (!silent)
+        std::cout << "N: " << "lowRes\thighRes\tValue\tHits\tMultiplicity" << std::endl;
     
 	if (bins > 1 || !silent)
 	{
