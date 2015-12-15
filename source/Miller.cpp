@@ -1007,11 +1007,11 @@ void Miller::integrateIntensity(MatrixPtr transformedMatrix)
         
         shoebox = ShoeboxPtr(new Shoebox(strongSelf));
         
-        int foregroundLength = FileParser::getKey("SHOEBOX_FOREGROUND_RADIUS",
+        int foregroundLength = FileParser::getKey("SHOEBOX_FOREGROUND_PADDING",
                                                   SHOEBOX_FOREGROUND_RADIUS);
-        int neitherLength = FileParser::getKey("SHOEBOX_NEITHER_RADIUS",
+        int neitherLength = FileParser::getKey("SHOEBOX_NEITHER_PADDING",
                                                SHOEBOX_NEITHER_RADIUS);
-        int backgroundLength = FileParser::getKey("SHOEBOX_BACKGROUND_RADIUS",
+        int backgroundLength = FileParser::getKey("SHOEBOX_BACKGROUND_PADDING",
                                                   SHOEBOX_BACKGROUND_RADIUS);
         bool shoeboxEven = FileParser::getKey("SHOEBOX_MAKE_EVEN", false);
         
