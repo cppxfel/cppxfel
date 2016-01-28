@@ -9,6 +9,7 @@
 #include "AmbiguityBreaker.h"
 #include <scitbx/lbfgsb.h>
 #include "StatisticsManager.h"
+#include "FileParser.h"
 #include <vector>
 
 double AmbiguityBreaker::dotProduct(int imageNumI, int imageNumJ)
@@ -110,10 +111,17 @@ void AmbiguityBreaker::setMtzs(vector<MtzPtr> newMtzs)
         ambiguityCount = mtzs[0]->ambiguityCount();
     }
     
-    for (int i = 0; i < mtzs.size(); i++)
+    
+    bool shouldApplyUnrefinedPartiality = FileParser::getKey("APPLY_UNREFINED_PARTIALITY", false);
+    
+    if (shouldApplyUnrefinedPartiality)
     {
-        mtzs[i]->applyUnrefinedPartiality();
+        for (int i = 0; i < mtzs.size(); i++)
+        {
+            mtzs[i]->applyUnrefinedPartiality();
+        }
     }
+    
     
     if (ambiguityCount > 1)
         makeCorrelationGrid();
@@ -220,8 +228,6 @@ void AmbiguityBreaker::breakAmbiguity()
     scitbx::lbfgs::traditional_convergence_test<double, int> is_converged(n);
     
     scitbx::af::ref<double> xb(x.begin(), n);
-    
-    srand(time(NULL));
     
     for (int i = 0; i < n; i++)
         x[i] = 1;

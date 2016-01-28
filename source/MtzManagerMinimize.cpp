@@ -132,10 +132,82 @@ double MtzManager::exclusionScoreWrapper(void *object, double lowRes,
             return scaler->evaluateForImage(static_cast<MtzManager *>(object)) + rSplit / 2;
         }
     }
-    
+    else if (scoreType == ScoreTypeMaximiseArea)
+    {
+        return static_cast<MtzManager *>(object)->maximisePartialityArea(lowRes, highRes);
+    }
     else
         return static_cast<MtzManager *>(object)->exclusionScore(lowRes,
                                                                  highRes, ScoreTypeCorrelation);
+}
+
+bool partialGreaterThanPartial(Partial a, Partial b)
+{
+    return (a.wavelength > b.wavelength);
+}
+
+double MtzManager::maximisePartialityArea(double low, double high)
+{
+    if (high == 0)
+    {
+        high = maxResolution();
+    }
+
+    std::vector<std::vector<Partial> > binnedPartialities;
+    
+    std::vector<double> resBins;
+    StatisticsManager::generateResolutionBins(low, high, 4, &resBins);
+    double totalArea = 0;
+    
+    for (int i = 0; i < resBins.size() - 1; i++)
+    {
+        std::vector<Partial> partials;
+        
+        for (int i = 0; i < reflections.size(); i++)
+        {
+            Reflection *imageReflection = reflections[i];
+            
+            if (!(imageReflection->betweenResolutions(resBins[i], resBins[i + 1])))
+            {
+                continue;
+            }
+            
+            Reflection *refReflection = NULL;
+            int reflid = (int)imageReflection->getReflId();
+            
+            referenceManager->findReflectionWithId(reflid, &refReflection);
+            
+            if (refReflection != NULL)
+            {
+                if (refReflection->meanIntensity() < REFERENCE_WEAK_REFLECTION)
+                    continue;
+                
+                if (!refReflection->betweenResolutions(low, high))
+                    continue;
+                
+                Partial partial;
+                partial.wavelength = imageReflection->miller(0)->getWavelength();
+                partial.partiality = imageReflection->miller(0)->getPartiality();
+                partial.percentage = imageReflection->miller(0)->getRawIntensity()
+                / refReflection->meanIntensityWithExclusion(&filename);
+                partial.resolution = imageReflection->getResolution();
+                
+                partials.push_back(partial);
+            }
+        }
+        
+        std::sort(partials.begin(), partials.end(), partialGreaterThanPartial);
+        double totalBinArea = 0;
+        
+        for (int i = 0; i < partials.size() - 1; i++)
+        {
+            // unfinished
+        }
+        
+        totalArea += totalBinArea;
+    }
+    
+    return totalArea;
 }
 
 double MtzManager::rSplit(double low, double high, bool withCutoff, bool set)
@@ -496,6 +568,7 @@ double MtzManager::minimize(double (*score)(void *object, double lowRes, double 
         {
             count++;
             
+            
             if (scoreType != ScoreTypeStandardDeviation)
             {
                 if (!optimisedMean)
@@ -696,7 +769,7 @@ double MtzManager::minimize(double (*score)(void *object, double lowRes, double 
         
         double *firstRange = &(*ranges.begin());
         getSteps(&firstRange);
- 
+        
         NelderMead refiner(paramPtrs, ranges, this, &this->scoreNelderMead);
         refiner.process();
     }

@@ -112,6 +112,9 @@ void Logger::awaitPrinting()
                 
                 std::cout << stringsToOutput[it->first][i].first->str() << std::flush;
                 count++;
+                
+                stringsToOutput[it->first][i].first->str("");
+                stringsToOutput[it->first][i].first->clear();
             }
             
             num++;

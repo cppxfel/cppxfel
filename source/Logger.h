@@ -54,6 +54,11 @@ public:
     void awaitPrinting();
     static void awaitPrintingWrapper(LoggerPtr logger);
     void addStream(std::ostringstream *stream, LogLevel level = LogLevelNormal);
+    
+    static LogLevel getPriorityLevel()
+    {
+        return mainLogger->printedLogLevel;
+    }
 };
 
 #endif /* defined(__cppxfel__Logger__) */

@@ -18,6 +18,7 @@
 #include "Shoebox.h"
 #include "Spot.h"
 #include "Vector.h"
+#include "IndexingSolution.h"
 
 Image::Image(std::string filename, double wavelength,
              double distance)
@@ -38,6 +39,8 @@ Image::Image(std::string filename, double wavelength,
     noCircles = false;
     commonCircleThreshold = FileParser::getKey("COMMON_CIRCLE_THRESHOLD", 0.05);
     
+    minimumSolutionNetworkCount = FileParser::getKey("MINIMUM_SOLUTION_NETWORK_COUNT", 5);
+    indexingFailureCount = 0;
     data = vector<int>();
     mmPerPixel = FileParser::getKey("MM_PER_PIXEL", MM_PER_PIXEL);
     vector<double> beam = FileParser::getKey("BEAM_CENTRE", vector<double>());
@@ -98,7 +101,7 @@ std::string Image::filenameRoot()
 
 void Image::setUpIOMRefiner(MatrixPtr matrix)
 {
-    IOMRefinerPtr indexer = IOMRefinerPtr(new IOMRefiner(this, matrix));
+    IOMRefinerPtr indexer = IOMRefinerPtr(new IOMRefiner(shared_from_this(), matrix));
     
     if (matrix->isComplex())
         indexer->setComplexMatrix();
@@ -108,15 +111,27 @@ void Image::setUpIOMRefiner(MatrixPtr matrix)
 
 void Image::setUpIOMRefiner(MatrixPtr unitcell, MatrixPtr rotation)
 {
-    IOMRefinerPtr indexer = IOMRefinerPtr(new IOMRefiner(this, MatrixPtr(new Matrix())));
+    IOMRefinerPtr indexer = IOMRefinerPtr(new IOMRefiner(shared_from_this(), MatrixPtr(new Matrix())));
     
     indexers.push_back(indexer);
 }
 
 Image::~Image()
 {
+//    std::cout << "Deallocating image." << std::endl;
+    
     data.clear();
     vector<int>().swap(data);
+    
+    overlapMask.clear();
+    vector<unsigned char>().swap(overlapMask);
+    
+    /*
+    spots.clear();
+    vector<SpotPtr>().swap(spots);
+    
+    spotVectors.clear();
+    vector<SpotVectorPtr>().swap(spotVectors);*/
 }
 
 void Image::addMask(int startX, int startY, int endX, int endY)
@@ -143,7 +158,7 @@ void Image::addSpotCover(int startX, int startY, int endX, int endY)
     spotCovers.push_back(mask);
 }
 
-void Image::applyMaskToImages(vector<Image *> images, int startX,
+void Image::applyMaskToImages(vector<ImagePtr> images, int startX,
                               int startY, int endX, int endY)
 {
     for (int i = 0; i < images.size(); i++)
@@ -285,10 +300,10 @@ int Image::valueAt(int x, int y)
     
     return data[position] * panelGain;
 }
-
+/*
 void Image::focusOnSpot(int *x, int *y, int tolerance1, int tolerance2)
 {
-    Spot *spot = new Spot(this);
+    Spot *spot = new Spot(shared_from_this());
     spot->makeProbe(150, 5);
     
     double maxLift = 0;
@@ -299,7 +314,7 @@ void Image::focusOnSpot(int *x, int *y, int tolerance1, int tolerance2)
     {
         for (int j = *y - tolerance1; j <= *y + tolerance1; j++)
         {
-            double lift = spot->maximumLift(this, i, j, true);
+            double lift = spot->maximumLift(shared_from_this(), i, j, true);
             
             if (lift > maxLift)
             {
@@ -312,7 +327,7 @@ void Image::focusOnSpot(int *x, int *y, int tolerance1, int tolerance2)
     
     *x = maxX;
     *y = maxY;
-}
+}*/
 
 void Image::focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bool even)
 {
@@ -337,6 +352,9 @@ void Image::focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bo
             {
                 for (int k = j - tolerance2; k <= j + tolerance2 + adjustment; k++)
                 {
+                    if (!accepted(h, k))
+                        continue;
+                    
                     int addition = valueAt(h, k);
                     newValue += addition;
                     count++;
@@ -452,7 +470,7 @@ bool Image::checkShoebox(ShoeboxPtr shoebox, int x, int y)
             if (!accepted(panelPixelX, panelPixelY))
             {
                 std::ostringstream logged;
-                logged << "Rejecting miller - pixel not acceptable" << std::endl;
+                logged << "Rejecting miller at (" << panelPixelX << ", " << panelPixelY << ") - pixel not acceptable" << std::endl;
                 Logger::mainLogger->addStream(&logged, LogLevelDebug);
                 return false;
             }
@@ -616,8 +634,8 @@ double Image::integrateFitBackgroundPlane(int x, int y, ShoeboxPtr shoebox, doub
     
     double backgroundInSignal = 0;
     
-    double lowestPoint = FLT_MAX;
-    double highestPoint = -FLT_MAX;
+ //   double lowestPoint = FLT_MAX;
+ //   double highestPoint = -FLT_MAX;
     std::vector<double> corners;
     /*
      corners.push_back(p * (startX) + q * (startY) + r);
@@ -807,7 +825,11 @@ bool Image::accepted(int x, int y)
         double value = valueAt(x, y);
         
         if (value == maskedValue)
+        {
+            logged << "Masking value at " << x << ", " << y << std::endl;
+            sendLog(LogLevelDebug);
             return false;
+        }
     }
     
     Coord coord = std::make_pair(x, y);
@@ -1075,9 +1097,98 @@ bool Image::checkUnitCell(double trueA, double trueB, double trueC, double toler
     return IOMRefinerCount() > 0;
 }
 
+void Image::updateAllSpots()
+{
+    for (int i = 0; i < spots.size(); i++)
+    {
+        spots[i]->setUpdate();
+    }
+    
+    for (int i = 0; i < spotVectors.size(); i++)
+    {
+        spotVectors[i]->setUpdate();
+    }
+}
+
+void Image::findSpots()
+{
+    double jump = FileParser::getKey("IMAGE_PIXEL_JUMP", 10);
+    std::vector<PanelPtr> panelsToDelete;
+    
+    for (int i = jump; i < xDim - jump; i += jump * 2)
+    {
+        for (int j = jump; j < yDim - jump; j += jump * 2)
+        {
+            SpotPtr testSpot = SpotPtr(new Spot(shared_from_this()));
+            int count = 1;
+            int consecutiveFailures = 0;
+            
+            if (!accepted(i, j))
+                continue;
+            
+            while (consecutiveFailures <= 0 && count == 1)
+            {
+                bool success = testSpot->focusOnNearbySpot(jump, i, j, count);
+                
+                if (success)
+                    consecutiveFailures = 0;
+                else
+                    consecutiveFailures++;
+                
+                if (success)
+                {
+                    logged << "Found spot (round " << count << ")" << std::endl;
+                    sendLog(LogLevelDetailed);
+                    spots.push_back(testSpot);
+                }
+                
+                double x = testSpot->getX();
+                double y = testSpot->getY();
+                /*
+                PanelPtr ptr = PanelPtr(new Panel(x - 2, y - 2, x + 2, y + 2, PanelTagBad));
+                Panel::setupPanel(ptr);
+                panelsToDelete.push_back(ptr);
+                
+                testSpot = SpotPtr(new Spot(shared_from_this()));
+                */
+                count++;
+            }
+        }
+    }
+    
+    for (int i = 0; i < panelsToDelete.size(); i++)
+    {
+        Panel::removePanel(panelsToDelete[i]);
+    }
+    
+    logged << "Found " << spotCount() << " spots." << std::endl;
+    sendLog();
+    
+    std::string basename = getBasename();
+    Spot::writeDatFromSpots(basename + "_spots.dat", spots);
+    writeSpotsList("_" + basename + "_strong.list");
+    
+    dropImage();
+}
+
 void Image::processSpotList()
 {
     std::string spotContents;
+    
+    if (spotsFile == "find")
+    {
+        logged << "Finding spots using cppxfel" << std::endl;
+        sendLog();
+        findSpots();
+        return;
+    }
+    
+    if (!FileReader::exists(spotsFile))
+    {
+        logged << "Cannot find spot file " << spotsFile << std::endl;
+        sendLog();
+        return;
+    }
     
     try
     {
@@ -1085,17 +1196,36 @@ void Image::processSpotList()
     }
     catch(int e)
     {
-        logged << "Cannot find spot file - not loading spots for " << filename << std::endl;
+        logged << "Error reading spot file " << filename << std::endl;
         sendLog();
+        
         return;
     }
     
     vector<std::string> spotLines = FileReader::split(spotContents, '\n');
     
+    double x = beamX;
+    double y = beamY;
+    vec beamXY = new_vector(beamX, beamY, 1);
+    vec newXY = new_vector(x, y, 1);
+    vec xyVec = vector_between_vectors(beamXY, newXY);
+    MatrixPtr rotateMat = MatrixPtr(new Matrix());
+    rotateMat->rotate(0, 0, M_PI);
+    rotateMat->multiplyVector(&xyVec);
+    
+    SpotPtr newSpot = SpotPtr(new Spot(shared_from_this()));
+    newSpot->setXY(beamX - xyVec.h, beamY - xyVec.k);
+    
+    spots.push_back(newSpot);
+    
     for (int i = 0; i < spotLines.size(); i++)
     {
         std::string line = spotLines[i];
         vector<std::string> components = FileReader::split(line, '\t');
+        
+        if (components.size() < 2)
+            continue;
+        
         double x = atof(components[0].c_str());
         double y = atof(components[1].c_str());
         vec beamXY = new_vector(beamX, beamY, 1);
@@ -1105,13 +1235,599 @@ void Image::processSpotList()
         rotateMat->rotate(0, 0, M_PI);
         rotateMat->multiplyVector(&xyVec);
         
-        SpotPtr newSpot = SpotPtr(new Spot(this));
+        SpotPtr newSpot = SpotPtr(new Spot(shared_from_this()));
         newSpot->setXY(beamX - xyVec.h, beamY - xyVec.k);
+        bool add = true;
         
-        spots.push_back(newSpot);
+        for (int j = 0; j < spots.size(); j++)
+        {
+            if (newSpot->isSameAs(spots[j]))
+            {
+                logged << "Same spot for " << getFilename() << ", ignoring" << std::endl;
+                sendLog();
+                add = false;
+            }
+        }
+        
+        if (add) spots.push_back(newSpot);
     }
     
     logged << "Loaded " << spots.size() << " spots from list " << spotsFile << std::endl;
     sendLog(LogLevelNormal);
 }
 
+
+void Image::rotatedSpotPositions(MatrixPtr rotationMatrix, std::vector<vec> *spotPositions, std::vector<std::string> *spotElements)
+{
+    double maxRes = 1.0;
+    
+    for (int i = 0; i < spots.size(); i++)
+    {
+        vec spotPos = spots[i]->estimatedVector();
+        bool goodSpot = (spots[i]->successfulLineCount() > 0);
+        
+        if (length_of_vector(spotPos) > 1 / maxRes)
+            continue;
+        
+        rotationMatrix->multiplyVector(&spotPos);
+        spotPositions->push_back(spotPos);
+        
+        std::string element = goodSpot ? "N" : "O";
+        spotElements->push_back(element);
+    }
+}
+
+void Image::compileDistancesFromSpots(double maxReciprocalDistance, double tooCloseDistance, bool filter)
+{
+    bool rejectCloseSpots = FileParser::getKey("REJECT_CLOSE_SPOTS", false);
+    double minResolution = FileParser::getKey("INDEXING_MIN_RESOLUTION", 0.0);
+    
+
+    if (maxReciprocalDistance == 0)
+    {
+        maxReciprocalDistance = FileParser::getKey("MAX_RECIPROCAL_DISTANCE", 0.02);
+    }
+    
+    spotVectors.clear();
+    std::vector<SpotVectorPtr>().swap(spotVectors);
+    
+    for (int i = 0; i < spots.size(); i++)
+    {
+        if (spots[i]->isRejected() && rejectCloseSpots)
+        {
+            i++;
+            continue;
+        }
+        
+        vec spotPos1 = spots[i]->estimatedVector();
+        
+        if (minResolution != 0)
+        {
+            if (length_of_vector(spotPos1) > 1 / minResolution)
+                continue;
+        }
+        
+        for (int j = i + 1; j < spots.size(); j++)
+        {
+            if (spots[j]->isRejected())
+            {
+                j++;
+                continue;
+            }
+            
+            vec spotPos2 = spots[j]->estimatedVector();
+            
+            bool close = within_vicinity(spotPos1, spotPos2, maxReciprocalDistance);
+            
+            bool tooClose = within_vicinity(spotPos1, spotPos2, tooCloseDistance);
+            
+            if (tooClose && rejectCloseSpots)
+            {
+                spots[j]->setRejected();
+                spots[i]->setRejected();
+                i++;
+            }
+            
+            if (close)
+            {
+                SpotVectorPtr newVec = SpotVectorPtr(new SpotVector(spots[i], spots[j]));
+                
+                double distance = newVec->distance();
+                
+                if (distance == 0)
+                    continue;
+                
+                if (distance > maxReciprocalDistance)
+                    continue;
+                
+                logged << "vec\t" << spots[i]->getX() << "\t" << spots[i]->getY() << "\t" << spots[j]->getX() << "\t" << spots[j]->getY() << "\t0\t0\t0\t" << distance << std::endl;
+                sendLog(LogLevelDetailed);
+                
+                spotVectors.push_back(newVec);
+            }
+        }
+        
+        sendLog(LogLevelDetailed);
+    }
+    
+    
+    int maxSpots = FileParser::getKey("REJECT_IF_SPOT_COUNT", 4000);
+    
+    if (maxSpots > 0)
+    {
+        if (spotCount() > maxSpots)
+        {
+            logged << "N: Aborting image " << getFilename() << " due to too many spots." << std::endl;
+            sendLog();
+            spotVectors.clear();
+            std::vector<SpotVectorPtr>().swap(spotVectors);
+            return;
+        }
+    }
+    
+    
+    if (filter)
+    {
+        filterSpotVectors();
+    }
+    
+    bool scramble = FileParser::getKey("SCRAMBLE_SPOT_VECTORS", false);
+    
+    if (scramble)
+    {
+        //   std::sort(spotVectors.begin(), spotVectors.end(), SpotVector::isGreaterThan);
+        
+        std::random_shuffle(spotVectors.begin(), spotVectors.end());
+    }
+    
+    logged << "(" << filename << ") " << spotCount() << " spots produced " << spotVectorCount() << " spot vectors." << std::endl;
+    sendLog();
+}
+
+bool solutionBetterThanSolution(IndexingSolutionPtr one, IndexingSolutionPtr two)
+{
+    return (one->spotVectorCount() > two->spotVectorCount());
+}
+
+void Image::filterSpotVectors()
+{
+    int spotsPerLattice = FileParser::getKey("SPOTS_PER_LATTICE", 100);
+    
+    std::vector<double> scoresOnly;
+    std::map<SpotVectorPtr, double> spotVectorMap;
+    double reciprocalTolerance = FileParser::getKey("RECIPROCAL_TOLERANCE", 0.0015);
+    
+    int totalSpots = spotCount();
+    double expectedLatticesFraction = (double)totalSpots / (double)spotsPerLattice;
+    int goodHits = round(expectedLatticesFraction);
+    int maxVectors = 12000;
+    
+    double goodFraction = proportion(goodHits);
+    
+    logged << "From " << totalSpots << " spots there is an estimated " << expectedLatticesFraction << " lattices" << std::endl;
+    logged << "Fraction of spot vectors which should be good: " << goodFraction << std::endl;
+    
+    sendLog();
+    
+    for (int i = 0; i < spotVectorCount() && i < maxVectors; i++)
+    {
+        SpotVectorPtr spotVec1 = spotVector(i);
+        double score = 0;
+        
+        for (int j = 0; j < spotVectorCount() && j < maxVectors; j++)
+        {
+            if (j == i)
+                continue;
+            
+            SpotVectorPtr spotVec2 = spotVector(j);
+            
+            if (spotVec1->isCloseToSpotVector(spotVec2, reciprocalTolerance))
+            {
+                double interDistance = spotVec1->similarityToSpotVector(spotVec2);
+                
+                if (interDistance < reciprocalTolerance)
+                    score += reciprocalTolerance - interDistance;
+            }
+        }
+        
+        spotVectorMap[spotVec1] = score;
+        scoresOnly.push_back(score);
+    }
+    
+    std::sort(scoresOnly.begin(), scoresOnly.end(), std::greater<int>());
+    
+    int vectorsToKeep = int((double)goodFraction * (double)scoresOnly.size());
+    
+    logged << "Keeping vectors: " << vectorsToKeep << " out of total: " << scoresOnly.size() << std::endl;
+    sendLog();
+    
+    if (vectorsToKeep == scoresOnly.size())
+        vectorsToKeep--;
+    
+    if (scoresOnly.size() == 0)
+        return;
+    
+    if (vectorsToKeep == 0)
+        return;
+    
+    double threshold = scoresOnly[vectorsToKeep];
+    int deleted = 0;
+    
+    logged << "Threshold: " << threshold << std::endl;
+    
+    for (int i = 0; i < spotVectorCount(); i++)
+    {
+        if (spotVectorMap.count(spotVector(i)) == 0 || spotVectorMap[spotVector(i)] <= threshold)
+        {
+            spotVectors.erase(spotVectors.begin() + i);
+            i--;
+            deleted++;
+        }
+    }
+    
+    logged << "Deleted: " << deleted << std::endl;
+    
+    sendLog();
+}
+
+bool Image::checkIndexingSolutionDuplicates(MatrixPtr newSolution, bool excludeLast)
+{
+    for (int i = 0; i < IOMRefinerCount() - excludeLast; i++)
+    {
+        MatrixPtr oldSolution = getIOMRefiner(i)->getMatrix();
+        
+        bool similar = IndexingSolution::matrixSimilarToMatrix(newSolution, oldSolution, true);
+        
+        if (similar)
+            return true;
+    }
+    
+    return false;
+}
+
+IndexingSolutionStatus Image::tryIndexingSolution(IndexingSolutionPtr solutionPtr)
+{
+    logged << "(" << filename << ") Trying solution from " << solutionPtr->spotVectorCount() << " vectors." << std::endl;
+    sendLog(LogLevelNormal);
+    
+    MatrixPtr solutionMatrix = solutionPtr->createSolution();
+    bool similar = checkIndexingSolutionDuplicates(solutionMatrix);
+    
+    if (similar)
+    {
+        logged << "Indexing solution too similar to previous solution. Continuing..." << std::endl;
+        sendLog(LogLevelNormal);
+        solutionPtr->removeSpotVectors(&spotVectors);
+        
+        return IndexingSolutionTrialDuplicate;
+    }
+    
+    bool acceptAllSolutions = FileParser::getKey("ACCEPT_ALL_SOLUTIONS", false);
+    bool refineOrientations = FileParser::getKey("REFINE_ORIENTATIONS", true);
+    
+    logged << solutionPtr->printNetwork();
+    logged << solutionPtr->getNetworkPDB();
+    
+    sendLog(LogLevelDetailed);
+    
+    setUpIOMRefiner(solutionMatrix);
+    int lastRefiner = IOMRefinerCount() - 1;
+    IOMRefinerPtr refiner = getIOMRefiner(lastRefiner);
+    if (refineOrientations)
+    {
+        refiner->refineOrientationMatrix();
+        bool similar = checkIndexingSolutionDuplicates(refiner->getMatrix(), true);
+        
+        if (similar)
+        {
+            removeRefiner(lastRefiner);
+            
+            logged << "Indexing solution too similar to previous solution after refinement. Continuing..." << std::endl;
+            sendLog(LogLevelNormal);
+            
+            return IndexingSolutionTrialDuplicate;
+        }
+    }
+    else
+    {
+        refiner->calculateOnce();
+    }
+    
+    bool successfulImage = refiner->isGoodSolution();
+    
+    if (successfulImage || acceptAllSolutions)
+    {
+        logged << "Successful crystal for " << getFilename() << std::endl;
+        MtzPtr mtz = refiner->newMtz(lastRefiner);
+        int spotCountBefore = (int)spots.size();
+        
+        mtz->removeStrongSpots(&spots);
+        compileDistancesFromSpots();
+        
+        int spotCountAfter = (int)spots.size();
+        
+        logged << "Removed spots; from " << spotCountBefore << " to " << spotCountAfter << "." << std::endl;
+        
+        Logger::mainLogger->addStream(&logged); logged.str("");
+        return IndexingSolutionTrialSuccess;
+    }
+    else
+    {
+        logged << "Unsuccessful crystal for " << getFilename() << std::endl;
+        removeRefiner(lastRefiner);
+        Logger::mainLogger->addStream(&logged); logged.str("");
+        indexingFailureCount++;
+        
+        solutionPtr->removeSpotVectors(&spotVectors);
+        
+        return IndexingSolutionTrialFailure;
+    }
+}
+
+IndexingSolutionStatus Image::extendIndexingSolution(IndexingSolutionPtr solutionPtr, std::vector<SpotVectorPtr> existingVectors, int *failures, int added)
+{
+    int newFailures = 0;
+    
+    if (failures == NULL)
+    {
+        failures = &newFailures;
+    }
+    
+    
+    std::vector<SpotVectorPtr> newVectors = existingVectors;
+    
+    if (!solutionPtr)
+    {
+        logged << "Solution pointer not pointing" << std::endl;
+        sendLog();
+        return IndexingSolutionBranchFailure;
+    }
+    int newlyAdded = 1;
+    int trials = 0;
+    int trialLimit = FileParser::getKey("NETWORK_TRIAL_LIMIT", 3);
+    
+    while (newlyAdded > 0 && added < 100 && trials < trialLimit)
+    {
+        IndexingSolutionPtr copyPtr = solutionPtr->copy();
+        
+        newlyAdded = copyPtr->extendFromSpotVectors(&newVectors, 1);
+        
+        if (newlyAdded > 0)
+        {
+            trials++;
+            logged << "Starting new branch with " << added + newlyAdded << " additions (trial " << trials << ")." << std::endl;
+            sendLog(LogLevelDetailed);
+            IndexingSolutionStatus success = extendIndexingSolution(copyPtr, newVectors, failures, added + newlyAdded);
+            
+            if (success != IndexingSolutionBranchFailure)
+            {
+                return success;
+            }
+            else
+            {
+                if (trials >= trialLimit)
+                {
+                    (*failures)++;
+                    logged << "Given up this branch, too many failures." << std::endl;
+                    sendLog(LogLevelDetailed);
+                    
+                    return success;
+                }
+            }
+        }
+        
+        if (*failures > 3)
+        {
+            logged << "Giving up on this thread, too many failures" << std::endl;
+            sendLog(LogLevelDetailed);
+            return IndexingSolutionBranchFailure;
+        }
+    }
+    
+    if (added >= minimumSolutionNetworkCount)
+    {
+        IndexingSolutionStatus success = tryIndexingSolution(solutionPtr);
+        
+        this->spotVectors = newVectors;
+        
+        return success;
+    }
+    
+    if (added < minimumSolutionNetworkCount)
+    {
+        logged << "Didn't go anywhere..." << std::endl;
+        sendLog(LogLevelDetailed);
+    }
+    
+    existingVectors.clear();
+    std::vector<SpotVectorPtr>().swap(existingVectors);
+    
+    return IndexingSolutionBranchFailure;
+}
+
+std::vector<double> Image::anglesBetweenVectorDistances(double distance1, double distance2, double tolerance)
+{
+    std::vector<SpotVectorPtr> firstVectors, secondVectors;
+    
+    for (int i = 0; i < spotVectors.size(); i++)
+    {
+        double vecDistance = spotVectors[i]->distance();
+        double diff1 = fabs(vecDistance - distance1);
+        double diff2 = fabs(vecDistance - distance2);
+        
+        if (diff1 < 1 / tolerance)
+        {
+            logged << "Image " << getFilename() << ", adding vector " << i << " " << spotVectors[i]->description() << " to group 1" << std::endl;
+            sendLog();
+            firstVectors.push_back(spotVectors[i]);
+        }
+        
+        if (diff2 < 1 / tolerance)
+        {
+            logged << "Image " << getFilename() << ", adding vector " << i << " " << spotVectors[i]->description() << " to group 2" << std::endl;
+            sendLog();
+            secondVectors.push_back(spotVectors[i]);
+        }
+    }
+    
+ //   if (firstVectors.size() <= 1 && secondVectors.size() <= 1)
+ //       return std::vector<double>();
+    
+    if (firstVectors.size() && secondVectors.size())
+    {
+        logged << "N: Image " << getFilename() << " has " << firstVectors.size() << " and " << secondVectors.size() << "  vector distances on same image." << std::endl;
+        sendLog();
+    }
+    else return std::vector<double>();
+    
+    std::vector<double> angles;
+    
+    for (int j = 0; j < firstVectors.size(); j++)
+    {
+        for (int k = 0; k < secondVectors.size(); k++)
+        {
+            double angle = firstVectors[j]->angleWithVector(secondVectors[k]);
+            logged << "Adding angle between " << firstVectors[j]->description() << " and " << secondVectors[k]->description() << " " << angle * 180 / M_PI << std::endl;
+            sendLog();
+            
+            angles.push_back(angle);
+            angles.push_back(M_PI - angle);
+        }
+    }
+    
+    return angles;
+}
+
+void Image::findIndexingSolutions()
+{
+    bool alwaysFilterSpots = FileParser::getKey("ALWAYS_FILTER_SPOTS", false);
+    
+    compileDistancesFromSpots(0, 0, alwaysFilterSpots);
+    std::vector<IndexingSolutionPtr> solutions;
+    
+    if (spotVectors.size() == 0)
+        return;
+    
+    int maxSearch = FileParser::getKey("MAX_SEARCH_NUMBER_MATCHES", 1000);
+    
+    if (IOMRefinerCount() > 0)
+    {
+        logged << "Existing solution summary:" << std::endl;
+        
+        for (int i = 0; i < IOMRefinerCount(); i++)
+        {
+            logged << getIOMRefiner(i)->getMatrix()->summary() << std::endl;
+        }
+    }
+    
+    sendLog();
+    
+    bool continuing = true;
+    int successes = 0;
+    int maxSuccesses = FileParser::getKey("SOLUTION_ATTEMPTS", 1);
+    
+    std::vector<SpotVectorPtr> prunedVectors = spotVectors;
+    IndexingSolution::pruneSpotVectors(&prunedVectors);
+    spotVectors = prunedVectors;
+    
+    logged << "Pruning " << filename << " spot vectors to " << prunedVectors.size() << std::endl;
+    sendLog();
+    
+    if (prunedVectors.size() == 0)
+    {
+        logged << "No vectors left - giving up." << std::endl;
+        sendLog();
+        return;
+    }
+    
+    for (int i = 0; i < prunedVectors.size() - 1 && i < 5000 && continuing && indexingFailureCount < 10; i++)
+    {
+        SpotVectorPtr spotVector1 = prunedVectors[i];
+        
+        for (int j = i + 1; j < prunedVectors.size() && continuing && indexingFailureCount < 10; j++)
+        {
+            SpotVectorPtr spotVector2 = prunedVectors[j];
+            
+            std::vector<IndexingSolutionPtr> moreSolutions = IndexingSolution::startingSolutionsForVectors(spotVector1, spotVector2);
+            
+            if (moreSolutions.size() > 0)
+            {
+                logged << "Starting a new solution..." << std::endl;
+                sendLog(LogLevelDetailed);
+                
+                IndexingSolutionStatus success = extendIndexingSolution(moreSolutions[0], prunedVectors);
+                
+                if (success == IndexingSolutionTrialSuccess)
+                {
+                    logged << "Indexing solution trial success." << std::endl;
+                    successes++;
+                    
+                    if (spots.size() < 50 || successes >= maxSuccesses)
+                    {
+                        continuing = false;
+                        break;
+                    }
+                }
+                else if (success == IndexingSolutionTrialFailure)
+                {
+                    logged << "Indexing solution trial failure." << std::endl;
+                //    minimumSolutionNetworkCount += 2;
+                    
+                    prunedVectors = spotVectors;
+                }
+            }
+            
+            moreSolutions.clear();
+            std::vector<IndexingSolutionPtr>().swap(moreSolutions);
+        }
+    }
+    
+    logged << "N: Finished image " << filename << " on " << IOMRefinerCount() << " crystals and " << spotCount() << " remaining spots." << std::endl;
+    sendLog();
+    
+    writeSpotsList();
+    dropImage();
+}
+
+std::vector<MtzPtr> Image::getLastMtzs()
+{
+    std::vector<MtzPtr> mtzs;
+    
+    for (int i = 0; i < IOMRefinerCount(); i++)
+    {
+        MtzPtr lastMtz = getIOMRefiner(i)->getLastMtz();
+        
+        if (lastMtz)
+        {
+            mtzs.push_back(lastMtz);
+        }
+    }
+    
+    return mtzs;
+}
+
+void Image::writeSpotsList(std::string spotFile)
+{
+    std::string spotDat;
+    
+    if (spotFile == "")
+    {
+        std::string tag = "remaining";
+        std::string basename = getBasename();
+        
+        spotFile = "_" + basename + "_" + tag + "_spots.list";
+        spotDat = basename + "_spots.dat";
+    }
+    
+    std::ofstream spotList;
+    spotList.open(spotFile);
+    
+    for (int i = 0; i < spotCount(); i++)
+    {
+        spotList << spot(i)->spotLine();
+    }
+    
+    spotList.close();
+    
+    Spot::writeDatFromSpots(spotDat, spots);
+}

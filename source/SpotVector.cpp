@@ -8,6 +8,15 @@
 
 #include "SpotVector.h"
 #include "Matrix.h"
+#include "misc.h"
+
+double SpotVector::distanceDifference(SpotVectorPtr standardVector)
+{
+    double standardDistance = standardVector->distance();
+    double diff = fabs(standardDistance - distance());
+    
+    return diff;
+}
 
 double SpotVector::trustComparedToStandardVector(SpotVectorPtr standardVector)
 {
@@ -22,28 +31,49 @@ SpotVector::SpotVector(vec transformedHKL, vec normalHKL)
     firstSpot = SpotPtr();
     secondSpot = SpotPtr();
     
+    update = false;
     hkl = normalHKL;
     spotDiff = copy_vector(transformedHKL);
+    cachedDistance = length_of_vector(spotDiff);
 }
 
 SpotVector::SpotVector(SpotPtr first, SpotPtr second)
 {
     firstSpot = first;
     secondSpot = second;
+    update = false;
     
     if (!first || !second)
         return;
     
-    vec firstVector = first->estimatedVector();
-    vec secondVector = second->estimatedVector();
+    calculateDistance();
+}
+
+void SpotVector::calculateDistance()
+{
+    vec firstVector = firstSpot->estimatedVector();
+    vec secondVector = secondSpot->estimatedVector();
     
     spotDiff = copy_vector(secondVector);
     take_vector_away_from_vector(firstVector, &spotDiff);
+    cachedDistance = length_of_vector(spotDiff);
 }
 
 double SpotVector::distance()
 {
-    return length_of_vector(spotDiff);
+    if (update)
+    {
+        calculateDistance();
+        update = false;
+    }
+    
+    return cachedDistance;
+}
+
+// in radians
+double SpotVector::angleWithVector(SpotVectorPtr spotVector2)
+{
+    return angleBetweenVectors(spotVector2->spotDiff, spotDiff);
 }
 
 double SpotVector::angleWithVector(SpotVectorPtr spotVector2, MatrixPtr mat)
@@ -104,6 +134,7 @@ SpotVectorPtr SpotVector::copy()
     SpotVectorPtr newPtr = SpotVectorPtr(new SpotVector(firstSpot, secondSpot));
     newPtr->hkl = copy_vector(hkl);
     newPtr->spotDiff = copy_vector(spotDiff);
+    newPtr->update = update;
     
     return newPtr;
 }
@@ -131,4 +162,9 @@ bool SpotVector::hasCommonSpotWithVector(SpotVectorPtr spotVector2)
     }
     
     return false;
+}
+
+std::string SpotVector::description()
+{
+    return "(" + f_to_str(spotDiff.h) + ", " + f_to_str(spotDiff.k) + ", " + f_to_str(spotDiff.l) + ")";
 }

@@ -1,0 +1,72 @@
+//
+//  IndexManager.h
+//  cppxfel
+//
+//  Created by Helen Ginn on 14/10/2015.
+//  Copyright (c) 2015 Division of Structural Biology Oxford. All rights reserved.
+//
+
+#ifndef __cppxfel__IndexManager__
+#define __cppxfel__IndexManager__
+
+#include "cmtzlib.h"
+#include "csymlib.h"
+#include <stdio.h>
+#include <vector>
+#include <map>
+#include "Image.h"
+#include "Vector.h"
+#include "parameters.h"
+#include "Logger.h"
+#include "Holder.h"
+#include "LoggableObject.h"
+
+typedef std::map<int, std::pair<int, int> > PowderHistogram;
+
+class IndexManager : LoggableObject
+{
+protected:
+    std::vector<ImagePtr> images;
+    std::vector<double> unitCell;
+    std::vector<MatrixPtr> symOperators;
+    MatrixPtr unitCellOnly;
+    MatrixPtr unitCellMatrix;
+    MatrixPtr unitCellMatrixInverse;
+    Reflection *newReflection;
+    CSym::CCP4SPG *spaceGroup;
+    int spaceGroupNum;
+    std::vector<MtzPtr> mtzs;
+    double minimumTrustDistance;
+    double minimumTrustAngle;
+    double solutionAngleSpread;
+    
+    void updateAllSpots();
+    static double metrologyTarget(void *object);
+    bool matrixSimilarToMatrix(MatrixPtr mat1, MatrixPtr mat2);
+    int indexOneImage(ImagePtr image, std::vector<MtzPtr> *mtzSubset);
+    double maxMillerIndexTrial;
+    double maxDistance;
+    double smallestDistance;
+    double minReciprocalDistance;
+    PowderHistogram generatePowderHistogram();
+    std::vector<VectorDistance> vectorDistances;
+public:
+    ImagePtr getImage(int i)
+    {
+        return images[i];
+    }
+    
+    std::vector<MtzPtr> getMtzs()
+    {
+        return mtzs;
+    }
+    
+    void refineMetrology();
+    static void indexThread(IndexManager *indexer, std::vector<MtzPtr> *mtzSubset, int offset);
+    void index();
+    void powderPattern();
+    IndexManager(std::vector<ImagePtr>images);
+};
+
+
+#endif /* defined(__cppxfel__IndexManager__) */

@@ -14,6 +14,7 @@
 #include "Image.h"
 #include <fstream>
 #include "AmbiguityBreaker.h"
+#include "IndexManager.h"
 
 #include "FileParser.h"
 #include "parameters.h"
@@ -203,7 +204,7 @@ void MtzRefiner::initialMerge()
      
      reference->writeToFile("initialMerge.mtz");
      */
-    
+        
     AmbiguityBreaker breaker = AmbiguityBreaker(mtzManagers);
     breaker.run();
     originalMerge = breaker.getMergedMtz();
@@ -515,7 +516,7 @@ void MtzRefiner::applyParametersToImages()
     
     for (int i = 0; i < images.size(); i++)
     {
-        Image *newImage = images[i];
+        ImagePtr newImage = images[i];
         
         newImage->setPinPoint(true);
         
@@ -544,7 +545,7 @@ void MtzRefiner::applyParametersToImages()
     }
 }
 
-void MtzRefiner::readSingleImageV2(std::string *filename, vector<Image *> *newImages, vector<MtzPtr> *newMtzs, int offset)
+void MtzRefiner::readSingleImageV2(std::string *filename, vector<ImagePtr> *newImages, vector<MtzPtr> *newMtzs, int offset)
 {
     double wavelength = FileParser::getKey("INTEGRATION_WAVELENGTH", 0.0);
     double detectorDistance = FileParser::getKey("DETECTOR_DISTANCE", 0.0);
@@ -628,8 +629,8 @@ void MtzRefiner::readSingleImageV2(std::string *filename, vector<Image *> *newIm
         MatrixPtr newMatrix;
         std::string paramsLine = "";
         
-        Image *newImage = new Image(imgName, wavelength,
-                                    detectorDistance);
+        ImagePtr newImage = ImagePtr(new Image(imgName, wavelength,
+                                    detectorDistance));
         bool hasSpots = false;
         
         for (int i = 1; i < lines.size(); i++)
@@ -659,7 +660,10 @@ void MtzRefiner::readSingleImageV2(std::string *filename, vector<Image *> *newIm
                     newMatrix->rotate(0, 0, M_PI / 2);
                 }
                 
-                continue;
+                if (newImages)
+                {
+                    newImage->setUpIOMRefiner(newMatrix);
+                }
             }
             
             if (components[0] == "wavelength" && wavelength == 0)
@@ -831,7 +835,7 @@ void MtzRefiner::readMatricesAndImages(std::string *filename, bool areImages)
     
     int maxThreads = FileParser::getMaxThreads();
     
-    vector<vector<Image *> > imageSubsets;
+    vector<vector<ImagePtr> > imageSubsets;
     vector<vector<MtzPtr> > mtzSubsets;
     imageSubsets.resize(maxThreads);
     mtzSubsets.resize(maxThreads);
@@ -847,7 +851,7 @@ void MtzRefiner::readMatricesAndImages(std::string *filename, bool areImages)
         else if (version == 2.0)
         {
             vector<MtzPtr> *chosenMtzs = areImages ? NULL : &mtzSubsets[i];
-            vector<Image *> *chosenImages = areImages ? &imageSubsets[i] : NULL;
+            vector<ImagePtr> *chosenImages = areImages ? &imageSubsets[i] : NULL;
             boost::thread *thr = new boost::thread(readSingleImageV2, filename,
                                                    chosenImages, chosenMtzs, i);
             threads.add_thread(thr);
@@ -892,7 +896,7 @@ void MtzRefiner::readMatricesAndImages(std::string *filename, bool areImages)
  //       applyParametersToImages();
 }
 
-void MtzRefiner::singleLoadImages(std::string *filename, vector<Image *> *newImages, int offset)
+void MtzRefiner::singleLoadImages(std::string *filename, vector<ImagePtr> *newImages, int offset)
 {
     const std::string contents = FileReader::get_file_contents(
                                                                filename->c_str());
@@ -1000,8 +1004,8 @@ void MtzRefiner::singleLoadImages(std::string *filename, vector<Image *> *newIma
         }
         
         
-        Image *newImage = new Image(imgName, wavelength,
-                                    detectorDistance);
+        ImagePtr newImage = ImagePtr(new Image(imgName, wavelength,
+                                    detectorDistance));
         
         MatrixPtr newMat = MatrixPtr();
         
@@ -1578,6 +1582,28 @@ void MtzRefiner::loadMillersIntoPanels()
     
     Panel::finaliseMillerArrays();
 }
+/*
+// ARK: Find spots
+
+void MtzRefiner::findSpotsWrapper(MtzRefiner *object, int offset, bool orientation)
+{
+    object->findSpotsThread(offset);
+}
+
+void MtzRefiner::findSpotsThread(offset)
+{
+    
+}
+
+void MtzRefiner::findSpots()
+{
+    this->readMatricesAndImages();
+    loadPanels();
+    std::cout << "N: Total images loaded: " << images.size() << std::endl;
+    
+    
+}
+*/
 
 // MARK: indexing
 
@@ -1639,7 +1665,7 @@ void MtzRefiner::writeNewOrientations(bool includeRots, bool detailed)
     
     for (int i = 0; i < images.size(); i++)
     {
-        Image *image = images[i];
+        ImagePtr image = images[i];
         
         // write out matrices etc.
         std::string imgFilename = image->filenameRoot();
@@ -1666,6 +1692,31 @@ void MtzRefiner::writeNewOrientations(bool includeRots, bool detailed)
     refineMats.close();
     mergeMats.close();
     integrateMats.close();
+}
+
+void MtzRefiner::index()
+{
+    this->readMatricesAndImages();
+    loadPanels();
+    std::cout << "N: Total images loaded: " << images.size() << std::endl;
+   
+    IndexManager *indexManager = new IndexManager(images);
+    
+    indexManager->index();
+    
+    mtzManagers = indexManager->getMtzs();
+    
+    writeNewOrientations();
+    integrationSummary();
+}
+
+void MtzRefiner::powderPattern()
+{
+    loadPanels();
+    this->readMatricesAndImages();
+    
+    IndexManager *indexManager = new IndexManager(images);
+    indexManager->powderPattern();
 }
 
 // MARK: Miscellaneous
@@ -1761,14 +1812,11 @@ void MtzRefiner::polarisationGraph()
 
 MtzRefiner::~MtzRefiner()
 {
+//    std::cout << "Deallocating MtzRefiner." << std::endl;
+    
     delete reference;
     delete panelParser;
     mtzManagers.clear();
-    
-    for (int i = 0; i < images.size(); i++)
-    {
-  //      delete images[i];
-    }
     
     images.clear();
     
@@ -1832,7 +1880,7 @@ void MtzRefiner::orientationPlot()
 
 void MtzRefiner::addMatrixToLastImage(scitbx::mat3<double> unit_cell, scitbx::mat3<double> rotation)
 {
-    Image *lastImage = images.back();
+    ImagePtr lastImage = images.back();
     MatrixPtr newMat = MatrixPtr(new Matrix(unit_cell, rotation));
     lastImage->setUpIOMRefiner(newMat);
     
@@ -1846,7 +1894,7 @@ void MtzRefiner::addMatrixToLastImage(scitbx::mat3<double> unit_cell, scitbx::ma
 
 void MtzRefiner::loadDxtbxImage(std::string imageName, vector<int> imageData, double distance, double wavelength)
 {
-    Image *newImage = new Image(imageName, wavelength, distance);
+    ImagePtr newImage = ImagePtr(new Image(imageName, wavelength, distance));
     newImage->setImageData(imageData);
     
     

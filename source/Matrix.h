@@ -15,6 +15,7 @@
 #include <cctbx/miller.h>
 #include <scitbx/mat3.h>
 #include "csymlib.h"
+#include "LoggableObject.h"
 
 class Matrix
 {
@@ -57,6 +58,7 @@ public:
     Matrix transpose();
     cctbx::miller::index<double> multiplyIndex(cctbx::miller::index<> *index);
     static void symmetryOperatorsForSpaceGroup(std::vector<MatrixPtr> *matrices, CSym::CCP4SPG *spaceGroup);
+    static MatrixPtr matrixFromEulerAngles(double theta, double phi, double psi);
     
     void translate(double x, double y, double z);
     void rotateHK(double hRot, double kRot);
@@ -73,19 +75,22 @@ public:
     void rotateModelAxes(double alpha, double beta, double gamma);
     void newMultiplyVector(double *vector[]);
     static MatrixPtr matrixFromUnitCell(double a, double b, double c, double alpha, double beta, double gamma);
+    static MatrixPtr matrixFromUnitCellVersion2(double a, double b, double c, double alpha, double beta, double gamma);
     void orientationMatrixUnitCell(double *a, double *b, double *c);
     void changeOrientationMatrixDimensions(double newA, double newB, double newC, double alpha, double beta, double gamma);
     void scaleUnitCellAxes(double aScale, double bScale, double cScale);
     void setComplexMatrix(MatrixPtr unitCell, MatrixPtr rotation);
+    void maxMillers(int (&millers)[3], double maxResolution);
     
+;
     void rotate2D(double angle);
     void translation(double **vector);
     
     double getEwaldSphere(vec *vector);
     double getEwaldSphereNoMatrix(vec index);
     
-    void eulerAngles(double *theta, double *phi, double *psi);
-    double similarityToRotationMatrix(MatrixPtr mat2, double tolerance);
+    void eulerAngles(double *theta, double *phi, double *psi, bool force = false);
+    double similarityToRotationMatrix(MatrixPtr mat2, double tolerance, bool force = false);
     void unitCellLengths(double **lengths);
     scitbx::mat3<double> cctbxMatrix(MatrixPtr theMatrix = MatrixPtr());
     void threeDimComponents(double **componentArray);
@@ -104,9 +109,15 @@ public:
         return false;
     }
     
+    MatrixPtr getRotation()
+    {
+        return rotation;
+    }
+    
     double determinant();
     Matrix operator*=(Matrix &b);
     Matrix operator*(Matrix &b);
+    Matrix testMultiply(Matrix &b);
     double &operator[](int index) {return components[index]; };
 };
 

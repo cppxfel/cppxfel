@@ -1465,6 +1465,8 @@ void MtzManager::writeToFile(std::string newFilename, bool announce, bool shifts
 
 MtzManager::~MtzManager(void)
 {
+//    std::cout << "Deallocating MtzManager." << std::endl;
+    
     for (int i = 0; i < reflections.size(); i++)
     {
         delete reflections[i];

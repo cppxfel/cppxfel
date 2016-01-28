@@ -17,15 +17,13 @@ class MtzRefiner
 private:
     vector<MtzPtr> mtzManagers;
 	MtzManager *reference;
-	vector<Image *> images;
+	vector<ImagePtr> images;
     static bool hasPanelParser;
     PanelParser *panelParser;
     static int imageLimit;
     static int imageMax(size_t lineCount);
-    static void singleLoadImages(std::string *filename, vector<Image *> *newImages, int offset);
-    static void readSingleImageV2(std::string *filename, vector<Image *> *newImages, vector<MtzPtr> *newMtzs, int offset);
-    void indexImage(int offset, vector<MtzPtr> *mtzSubset);
-    static void indexImageWrapper(MtzRefiner *object, int offset, vector<MtzPtr> *mtzSubset);
+    static void singleLoadImages(std::string *filename, vector<ImagePtr> *newImages, int offset);
+    static void readSingleImageV2(std::string *filename, vector<ImagePtr> *newImages, vector<MtzPtr> *newMtzs, int offset);
     void applyParametersToImages();
     static int cycleNum;
     bool hasRefined;
@@ -54,6 +52,7 @@ public:
     void orientationPlot();
     void applyUnrefinedPartiality();
     void loadImageFiles();
+    void findSpots();
     
     void loadPanels();
 	void integrate();

@@ -1,3 +1,17 @@
+#!/usr/bin/env cppxfel.python
+
+from os.path import basename
+from os.path import splitext
+import StringIO
+import dxtbx
+import pickle
+import array
+import os
+import sys
+from multiprocessing import Process
+from scitbx.array_family import flex
+import scitbx.math
+
 distance = 0
 wavelength = 0
 centre = (0, 0)
@@ -18,6 +32,9 @@ Returns: filename stem.
 def rootnameStem(filename):
 	return filename.replace("_experiments.json", "").replace("_strong.list", "")
 
+def baseName(filename):
+	return os.path.splitext(filename)[0]
+
 """
 Function prints matrices from DIALS experiment objects separating
 into unitcell and rotation components into a string stream for a
@@ -33,7 +50,6 @@ Returns: None
 """
 def printExperiments(experiments, filename, output):	
 	rootname_stem = rootnameStem(filename)
-	print >>output, "image " + rootname_stem[1:]
 	
 	global distance, centre, wavelength, pixelSize, spacegroup, unit_cell_dimensions
 	
@@ -49,11 +65,6 @@ def printExperiments(experiments, filename, output):
 		print >> output, "wavelength", wavelength
 		print >> output, "distance", distance
 		print >> output, "centre", centre[0], centre[1]
-
-	spotListName = rootname_stem + "_strong.list"
-	
-	if (os.path.isfile(spotListName)):
-		print >> output, "spots", spotListName
 
 	for experiment in experiments:
 		spacegroup = experiment.crystal.get_space_group().type().number()
@@ -104,58 +115,94 @@ def matrixForFilename(filename, output):
 
 	path = experiments[0].imageset.get_path(0)
 	print "Image", path, "has", len(experiments), "experiments."
-	paths.append(path)
 	printExperiments(experiments, filename, output)
 
-def printSpots():
-	import glob
-	global output
-	globString = "*_strong.list"
-	files = glob.glob(globString)
-	
-	for file in files:
-		rootname = rootnameStem(file)
-		
-		if os.path.isfile(rootname + "_experiments.json"):
-			continue
-		
-		imagePath = rootname[1:] + ".pickle"
-		
-		paths.append(imagePath)
-		printExperiments([], file, output)
+"""
+Goes through each image path provided and searches for an associated
+_*strong.list file and _*experiments.json file. Prints relevant data
+if the associated file is found.
+arg: path to an individual file.
 
-def printMatrices():
-	import glob
+"""
+def printData(path):
 	global output
-	globString = "*_experiments.json"
-	files = glob.glob(globString)
+	baseFile = baseName(path)
+	spotListName = "_" + baseFile + "_strong.list"
+	experimentsJson = "_" + baseFile + "_experiments.json"
 	
-	for file in files:
-		matrixForFilename(file, output)	
+	print "Finding data for", path
+	
+	if (os.path.isfile(path)):
+		print >> output, "image", path
+	
+	if os.path.isfile(spotListName):
+		print "Found spots."
+		print >> output, "spots", spotListName
 
-def dumpPanels(image):
+	if os.path.isfile(experimentsJson):
+		print "Found DIALS indexing solutions."
+		matrixForFilename(experimentsJson, output)
+
+def dumpPanels(images):
 	global panels
-	print "Dumping panels from first image"
-	f = open(image, 'rb')
-	x = pickle.load(f)
-	panels = x['ACTIVE_AREAS']
-	panelTxt = StringIO.StringIO()
+	print "Attempting to dump panel file"
+	# i is an integer specifying the image counter
+	i = 0
+	successful = False
 	
-	for i in range(0, len(panels), 4):
-		print >> panelTxt, "PANEL",
-		print >>panelTxt, panels[i + 1], panels[i + 0], panels[i + 3], panels[i + 2]
+	while not successful:
+		try:
+			f = open(images[i], 'rb')
+			x = pickle.load(f)
+		except Exception as e:
+			print Exception
+			i += 1
+			
+			if (i > len(images)):
+				break
+			
+			continue
+
+		# now we dump from this pickle file and stop the while loop
+		
+		successful = True
+		panels = x['ACTIVE_AREAS']
+		panelTxt = StringIO.StringIO()
 	
+		for i in range(0, len(panels), 4):
+			print >> panelTxt, "PANEL",
+			print >>panelTxt, panels[i + 1], panels[i + 0], panels[i + 3], panels[i + 2]
+	
+		outputFilename = "panels.txt"
+		file = open(outputFilename, 'w')
+		print >>file, panelTxt.getvalue()
+		file.close()
+		return
+		
+	# If we got here, a pickle file was not found.
+	
+	print "No pickle files found. Please check your panels.txt file."
 	outputFilename = "panels.txt"
 	file = open(outputFilename, 'w')
-	print >>file, panelTxt.getvalue()
+	print >>file, "# Enable for basic CSPAD detector."
+	print >>file, "#PANEL 0 0 1765 1765"
+	print >>file, "# Enable for Rayonix detector."
+	print >>file, "#PANEL 0 0 1920 1920"
 	file.close()
+	return
 
 def dumpImages(imagePaths):
 	for path in imagePaths:
 		print "Dumping image:", path
 		rootname = splitext(basename(path))[0]
-		db = dxtbx.load(path).get_detectorbase()
+		ext = splitext(basename(path))[1]
 		
+		if not ext == ".pickle":
+			print "Warning: not a pickle file. Converting to pickle first."
+			command = "cxi.image2pickle " + path
+			os.system(command)
+		
+		db = dxtbx.load(rootname + ".pickle").get_detectorbase()
 		data = db.get_raw_data()
 
 		data_array = array.array('i')
@@ -168,32 +215,34 @@ def dumpImages(imagePaths):
 		newFile.write(string)
 		newFile.close()
 
-from os.path import basename
-from os.path import splitext
-import StringIO
-import dxtbx
-import pickle
-import array
-import os
-import sys
-from multiprocessing import Process
-from scitbx.array_family import flex
-import scitbx.math
+# Take all the paths provided after cppxfel.input_gen.
+paths = sys.argv[1:]
 
-paths = []
+if (len(paths) == 0):
+	print "Please specify the images you want to dump, e.g.:"
+	print "\tcppxfel.input_gen shot*.pickle"
+	exit()
 
+# Start the output stringIO which will be written to matrices.dat
 output = StringIO.StringIO()
 
-printMatrices()
-printSpots()
+# For each image, print the data to the output stringIO.
+for path in paths:
+	printData(path)
 
+print "Contents of matrices.dat file:"
 print output.getvalue()
+print "End of matrices.dat file contents."
 
 outputFilename = "matrices.dat"
 outputFile = open(outputFilename, 'w')
 print >>outputFile, output.getvalue()[:-1]
 outputFile.close()
 
+print "Dumping panels from first pickle image..."
+dumpPanels(paths)
+
+# Now we dump image data for cppxfel.
 threads = []
 thread_count = int(os.getenv('NSLOTS', 4))
 image_num = len(paths)
@@ -202,9 +251,6 @@ images_per_thread = image_num / thread_count
 if (len(paths) == 0):
 	print "No images with matrices provided."
 	exit()
-
-print "Dumping panels from first image..."
-dumpPanels(paths[0])
 
 print "Total images ready for dumping: ", image_num
 

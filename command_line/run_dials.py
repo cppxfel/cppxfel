@@ -78,7 +78,7 @@ def indexImages(images):
 		skip = os.path.isfile(rootname + ".json")
 	
 		if skip == False:
-			command = "dials.import " + filename + " output.datablock=" + rootname + ".json "
+			command = "dials.import " + filename + " output=" + rootname + ".json "
 			command += import_options
 			print "Executing command: ", command
 			os.system(command)

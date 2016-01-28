@@ -32,6 +32,7 @@ vec perpendicular_for_vectors(vec vec1, vec vec2);
 MatrixPtr rotation_between_vectors(vec vec1, vec vec2);
 MatrixPtr rotation_between_vectors_custom_cross(vec vec1, vec vec2, vec chosenCrossProduct);
 MatrixPtr closest_rotation_matrix(vec vec1, vec vec2, vec chosenCrossProduct, double *resultantAngle);
+void setFloatingPointErrorZerosToZero(vec *vec1, double limit = 10e-8);
 
 double getEwaldSphereNoMatrix(vec index);
 double getEwaldWeightForAxis(vec index, bool isH);
@@ -42,7 +43,7 @@ double super_gaussian(double x, double mean, double sigma_0, double exponent);
 
 double minimizeParam(double &step, double &param, double (*score)(void *object),
                          void *object);
-double minimizeParameter(double &step, double &param, double (*score)(void *object),
+double minimizeParameter(double &step, double *param, double (*score)(void *object),
                        void *object);
 
 double sum(vector<double> values);

@@ -18,7 +18,7 @@ private:
 public:
 	virtual void parse(bool fromPython = false);
 
-	void addPanel(std::string rest);
+	void addPanel(std::string rest, PanelTag tag = PanelTagNormal);
 	PanelParser(std::string filename);
 	virtual ~PanelParser();
 };

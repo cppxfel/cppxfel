@@ -9,15 +9,15 @@
 #define IOMRefiner_H_
 
 #include "Image.h"
+#include "parameters.h"
+#include "IndexManager.h"
 #include "Miller.h"
 #include "Matrix.h"
 #include "MtzManager.h"
 #include "csymlib.h"
 #include "Spot.h"
-#include "parameters.h"
 #include "Logger.h"
 
-class Image;
 class Miller;
 
 using namespace CSym;
@@ -39,16 +39,17 @@ typedef enum
     RefinementTypeOrientationMatrixStdevOnly = 12,
 } RefinementType;
 
-class IOMRefiner
+class IOMRefiner : public boost::enable_shared_from_this<IOMRefiner>
 {
 private:
-	Image *image;
+	ImageWeakPtr image;
 	vector<MillerPtr> millers;
 	vector<MillerPtr> nearbyMillers;
     vector<MillerPtr> roughMillers;
 	vector<Spot *>spots;
     MatrixPtr matrix;
     std::vector<Match> indexingMatches;
+    MtzPtr lastMtz;
 
     double minResolution;
     bool roughCalculation;
@@ -94,7 +95,7 @@ private:
     void sendLog(LogLevel priority = LogLevelNormal);
 
 public:
-	IOMRefiner(Image *newImage = NULL, MatrixPtr matrix = MatrixPtr());
+	IOMRefiner(ImagePtr newImage = ImagePtr(), MatrixPtr matrix = MatrixPtr());
     void setComplexMatrix();
     virtual ~IOMRefiner();
 
@@ -107,9 +108,9 @@ public:
 
 	static bool millerReachesThreshold(MillerPtr miller);
 	void findSpots();
-	static void duplicateSpots(vector<Image *>images);
+	static void duplicateSpots(vector<ImagePtr>images);
 	void writeDatFromSpots(std::string filename);
-	static void scatterSpots(vector<Image *> images);
+	static void scatterSpots(vector<ImagePtr> images);
 
 	void matchMatrixToSpots();
 	void matchMatrixToSpots(RefinementType refinement);
@@ -178,12 +179,12 @@ public:
         return lastScore;
     }
     
-	Image*& getImage()
+	ImagePtr getImage()
 	{
-		return image;
+		return image.lock();
 	}
 
-	void setImage(Image*& image)
+	void setImage(ImagePtr image)
 	{
 		this->image = image;
 	}
@@ -344,6 +345,11 @@ public:
     void setCalculatingRough(bool rough)
     {
         roughCalculation = rough;
+    }
+    
+    MtzPtr getLastMtz()
+    {
+        return lastMtz;
     }
 };
 

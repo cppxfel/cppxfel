@@ -32,6 +32,7 @@ typedef enum
     ScoreTypeSymmetry = 8,
     ScoreTypeStandardDeviation = 9,
     ScoreTypeMinimizeRMeas = 10,
+    ScoreTypeMaximiseArea = 11,
 } ScoreType;
 
 typedef enum
@@ -283,6 +284,7 @@ public:
 			void *object, double lowRes, double highRes);
 	double partialHits(vector<double> *partials, vector<double> *percentages);
 	double partialityGradient();
+    double maximisePartialityArea(double low, double high);
 
 // more grid search
 

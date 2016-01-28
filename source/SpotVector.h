@@ -18,24 +18,40 @@ class SpotVector
 private:
     SpotPtr firstSpot;
     SpotPtr secondSpot;
+    bool update;
+    double cachedDistance;
     
     vec hkl;
     vec spotDiff;
 public:
+    
+    static bool isGreaterThan(SpotVectorPtr spotVec1, SpotVectorPtr spotVec2)
+    {
+        return (spotVec2->distance() < spotVec1->distance());
+    }
     
     SpotVector(SpotPtr first, SpotPtr second);
     SpotVector(vec transformedHKL, vec normalHKL);
     
     bool hasCommonSpotWithVector(SpotVectorPtr spotVector2);
     double distance();
+    void calculateDistance();
     double angleWithVertical();
-    double angleWithVector(SpotVectorPtr spotVector2, MatrixPtr mat = MatrixPtr());
+    double angleWithVector(SpotVectorPtr spotVector2);
+    double angleWithVector(SpotVectorPtr spotVector2, MatrixPtr mat);
     double similarityToSpotVector(SpotVectorPtr spotVector2);
     void projectedXYDisplacement(double *x, double *y);
     bool isCloseToSpotVector(SpotVectorPtr spotVector2, double maxDistance);
     double trustComparedToStandardVector(SpotVectorPtr standardVector);
+    double distanceDifference(SpotVectorPtr standardVector);
     SpotVectorPtr copy();
     SpotVectorPtr vectorRotatedByMatrix(MatrixPtr mat);
+    std::string description();
+    
+    void setUpdate()
+    {
+        update = true;
+    }
     
     vec getVector()
     {

@@ -19,7 +19,15 @@
 class IOMRefiner;
 class ImageCluster;
 
-class Image : LoggableObject
+typedef enum
+{
+    IndexingSolutionTrialSuccess,
+    IndexingSolutionTrialFailure,
+    IndexingSolutionTrialDuplicate,
+    IndexingSolutionBranchFailure,
+} IndexingSolutionStatus;
+
+class Image : LoggableObject, public boost::enable_shared_from_this<Image>
 {
 private:
     int pixelCountCutoff;
@@ -27,11 +35,13 @@ private:
 	vector<int> data;
     vector<unsigned char> overlapMask;
 	void loadImage();
+    void findSpots();
     vector<IOMRefinerPtr> indexers;
     bool shouldMaskValue;
     bool maskedValue;
     bool fitBackgroundAsPlane;
     std::string spotsFile;
+    IndexingSolutionStatus extendIndexingSolution(IndexingSolutionPtr solutionPtr, std::vector<SpotVectorPtr> existingVectors, int *failures = NULL, int added = 0);
     
 	/* Shoebox must be n by n where n is an odd number */
 	int shoebox[7][7];
@@ -49,6 +59,9 @@ private:
 	double wavelength;
 	bool pinPoint;
 
+    int indexingFailureCount;
+    int minimumSolutionNetworkCount;
+    
     std::vector<SpotPtr> spots;
     std::vector<SpotVectorPtr> spotVectors;
     double commonCircleThreshold;
@@ -65,17 +78,19 @@ private:
 	double integrateWithShoebox(int x, int y, ShoeboxPtr shoebox, double *error);
 	bool checkShoebox(ShoeboxPtr shoebox, int x, int y);
     double weightAtShoeboxIndex(ShoeboxPtr shoebox, int x, int y);
+    bool checkIndexingSolutionDuplicates(MatrixPtr newSolution, bool excludeLast = false);
 public:
     void incrementOverlapMask(int x, int y, ShoeboxPtr shoebox);
     void incrementOverlapMask(int x, int y);
     void processSpotList();
+    void writeSpotsList(std::string spotFile = "");
     
     unsigned char overlapAt(int x, int y);
     unsigned char maximumOverlapMask(int x, int y, ShoeboxPtr shoebox);
 	Image(std::string filename = "", double wavelength = 0,
 			double distance = 0);
 	void focusOnSpot(int *x, int *y, int tolerance1, int tolerance2);
-	void focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bool even);
+	void focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2 = 1, bool even = false);
     void focusOnMaximum(int *x, int *y, int tolerance = 0, double shiftX = 0, double shiftY = 0);
 	void dropImage();
 	virtual ~Image();
@@ -86,9 +101,11 @@ public:
 	void addMask(int startX, int startY, int endX, int endY);
 	void addSpotCover(int startX, int startY, int endX, int endY);
 	bool coveredBySpot(int x, int y);
-	static void applyMaskToImages(vector<Image *> images, int startX,
+	static void applyMaskToImages(vector<ImagePtr> images, int startX,
 			int startY, int endX, int endY);
     void refineDistances();
+    IndexingSolutionStatus tryIndexingSolution(IndexingSolutionPtr solutionPtr);
+    std::vector<double> anglesBetweenVectorDistances(double distance1, double distance2, double tolerance);
     
     void rotatedSpotPositions(MatrixPtr rotationMatrix, std::vector<vec> *spotPositions, std::vector<std::string> *spotElements);
 
@@ -101,6 +118,17 @@ public:
 	{
 		this->filename = filename;
 	}
+    
+    std::string getBasename()
+    {
+        int fullStopIndex = (int)filename.rfind(".");
+        if (fullStopIndex == std::string::npos)
+            return filename;
+        
+        std::string basename = filename.substr(0, fullStopIndex);
+        
+        return basename;
+    }
     
     std::string getSpotsFile()
     {
@@ -120,6 +148,7 @@ public:
 	void refineIndexing(MtzManager *reference);
 	void refineOrientations();
 	vector<MtzPtr> currentMtzs();
+    std::vector<MtzPtr> getLastMtzs();
 	bool isLoaded();
     
     void setSpaceGroup(CSym::CCP4SPG *spg);
@@ -138,6 +167,7 @@ public:
     void compileDistancesFromSpots(double maxReciprocalDistance = 0, double tooCloseDistance = 0, bool filter = false);
     void filterSpotVectors();
     int throwAwayIntegratedSpots(std::vector<MtzPtr> mtzs);
+    void updateAllSpots();
     
     void removeRefiner(int j)
     {

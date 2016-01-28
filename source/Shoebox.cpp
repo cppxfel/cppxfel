@@ -19,7 +19,7 @@ Shoebox::Shoebox(MillerPtr parent)
     
     if (parent)
     {
-        Image *image = parent->getImage();
+        ImagePtr image = parent->getImage();
         mmPerPixel = image->getMmPerPixel();
         detectorDistance = image->getDetectorDistance();
     }
@@ -363,7 +363,7 @@ void Shoebox::compressBigShoebox(double width, double height, double angle, Box 
 
 void Shoebox::complexShoebox(double wavelength, double bandwidth, double radius)
 {
-    MillerPtr tempMiller = miller.lock();
+    MillerPtr tempMiller = getMiller();
     
     if (!tempMiller)
     {
@@ -420,4 +420,9 @@ void Shoebox::clearShoebox()
     
     shoebox.clear();
     vector<vector<double> >().swap(shoebox);
+}
+
+Shoebox::~Shoebox()
+{
+//    std::cout << "Deallocating shoebox" << std::endl;
 }

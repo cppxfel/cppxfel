@@ -46,6 +46,8 @@ source = [
 'source/Holder.cpp',
 'source/Image.cpp',
 'source/IOMRefiner.cpp',
+'source/IndexManager.cpp',
+'source/IndexingSolution.cpp',
 'source/InputFileParser.cpp',
 'source/Logger.cpp',
 'source/LoggableObject.cpp',

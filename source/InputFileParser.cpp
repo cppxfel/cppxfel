@@ -131,6 +131,9 @@ void InputFileParser::parse(bool fromPython)
     
     refiner = boost::shared_ptr<MtzRefiner>(new MtzRefiner());
     
+    int seed = FileParser::getKey("RANDOM_SEED", 0);
+    srand((unsigned int)seed);
+    
 	if (continueFrom != -1)
 	{
 		for (int i = continueFrom; i < fileLines.size(); i++)
@@ -255,6 +258,17 @@ void InputFileParser::parse(bool fromPython)
                 refiner->applyUnrefinedPartiality();
             }
             
+            if (line == "INDEX")
+            {
+                understood = true;
+                refiner->index();
+            }
+            
+            if (line == "POWDER_PATTERN")
+            {
+                understood = true;
+                refiner->powderPattern();
+            }
             
             if (!understood)
             {

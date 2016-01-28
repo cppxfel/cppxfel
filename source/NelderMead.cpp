@@ -248,6 +248,9 @@ NelderMead::NelderMead(std::vector<double *> newParamPtrs, std::vector<double> e
     int testPointCount = (int)paramCount() + 1;
     testPoints.resize(testPointCount);
     
+    if (paramCount() == 0)
+        return;
+    
     assert(paramCount() > 1);
     
     for (int i = 0; i < testPoints.size(); i++)

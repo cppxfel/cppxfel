@@ -711,18 +711,20 @@ void MtzGrouper::mergeMillers(MtzManager **mergeMtz, bool reject, int mtzCount)
 	int aveStdErrCount = 0;
     
     bool recalculateSigma = FileParser::getKey("RECALCULATE_SIGMA", false);
+    bool minimumMultiplicity = FileParser::getKey("MINIMUM_MULTIPLICITY", 0);
     
     for (int i = 0; i < (*mergeMtz)->reflectionCount(); i++)
 	{
 		Reflection *reflection = (*mergeMtz)->reflection(i);
 
-		if (!reflection->anyAccepted())
-		{
-			(*mergeMtz)->removeReflection(i);
-			i--;
-			continue;
-		}
+        int accepted = reflection->acceptedCount();
         
+        if (accepted <= minimumMultiplicity || accepted == 0)
+        {
+            (*mergeMtz)->removeReflection(i);
+            i--;
+            continue;
+        }
         sendLog();
 
 		double totalIntensity = 0;

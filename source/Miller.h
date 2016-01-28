@@ -98,7 +98,7 @@ private:
     
     double expectedRadius(double spotSize, double mosaicity, vec *hkl);
     
-    Image *image;
+    ImageWeakPtr image;
     IOMRefiner *indexer;
     ShoeboxPtr shoebox;
     boost::weak_ptr<Miller> selfPtr;
@@ -149,7 +149,7 @@ public:
 	double getWeight(bool cutoff = true, WeightType weighting = WeightTypePartialitySigma);
 	double resolution();
     double twoTheta(bool horizontal);
-	double scatteringAngle(Image *image);
+	double scatteringAngle(ImagePtr image);
     void denormalise();
 
     void incrementOverlapMask(double hRot = 0, double kRot = 0);
@@ -396,15 +396,15 @@ public:
 		this->shift = shift;
 	}
     
-    void setImageAndIOMRefiner(Image *newImage, IOMRefiner *indexer)
+    void setImageAndIOMRefiner(ImagePtr newImage, IOMRefiner *indexer)
     {
         this->image = newImage;
         this->indexer = indexer;
     }
     
-    Image *getImage()
+    ImagePtr getImage()
     {
-        return image;
+        return image.lock();
     }
     
     void setSelf(MillerPtr ptr)

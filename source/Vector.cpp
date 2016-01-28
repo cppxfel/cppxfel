@@ -47,7 +47,24 @@ bool within_vicinity(vec vec1, vec vec2, double maxD)
     if (fabs(vec1.l - vec2.l) > maxD)
         return false;
     
+    take_vector_away_from_vector(vec1, &vec2);
+    
+    if (length_of_vector(vec2) > maxD)
+        return false;
+    
     return true;
+}
+
+void setFloatingPointErrorZerosToZero(vec *vec1, double limit)
+{
+    if (fabs(vec1->h) < limit)
+        vec1->h = 0;
+
+    if (fabs(vec1->k) < limit)
+        vec1->k = 0;
+
+    if (fabs(vec1->l) < limit)
+        vec1->l = 0;
 }
 
 vec vector_between_vectors(vec vec1, vec vec2)
@@ -85,14 +102,13 @@ vec perpendicular_for_vectors(vec vec1, vec vec2)
 MatrixPtr rotation_between_vectors(vec vec1, vec vec2)
 {
     MatrixPtr matrix = MatrixPtr(new Matrix());
+   // MatrixPtr matrix;
     
+    // Find closest angle between vectors (straightest sweep between the two)
     double cosine = cosineBetweenVectors(vec1, vec2);
+    
     vec crossVector = cross_product_for_vectors(vec1, vec2);
     scale_vector_to_distance(&crossVector, 1);
-    
-    std::ostringstream logged;
-  //  logged << "Cross vector for rotation:" << crossVector.h << ", " << crossVector.k << ", " << crossVector.l << std::endl;
-    Logger::mainLogger->addStream(&logged);
     
     double angle = acos(cosine);
     
@@ -104,66 +120,49 @@ MatrixPtr rotation_between_vectors(vec vec1, vec vec2)
 MatrixPtr closest_rotation_matrix(vec vec1, vec vec2, vec chosenCrossProduct, double *resultantAngle)
 {
     bool close = false;
+    
+    // we want to minimise the angle between the vectors rotating round chosen axis. This is the starting value
     double lastAngle = fabs(angleBetweenVectors(vec1, vec2));
     MatrixPtr mat = MatrixPtr(new Matrix());
-    double step = 0.1 * M_PI / 180;
+    
+    // we step by this amount on each iteration.
+    double step = 0.5 * M_PI / 180;
+    
+    // in case we start going in the wrong direction, we can switch direction once
     bool switchedOnce = false;
+    
+    // for very fine angles when we are closer to the solution
     bool divided = false;
-    double secondLastAngle = lastAngle;
     
- /*   std::ostringstream logged;
+    int cycles = 0;
     
-    double minResult = FLT_MAX;
-    double minAngle = 0;
-    
-    for (double i = 0; i < 2 * M_PI; i += step)
+    while (!close && cycles < 5000000)
     {
         mat->rotateRoundUnitVector(chosenCrossProduct, step);
         vec vec1Copy = copy_vector(vec1);
         mat->multiplyVector(&vec1Copy);
-        double angleDiff = fabs(angleBetweenVectors(vec1Copy, vec2));
+        double angleDiff = fabs(angleBetweenVectors(vec1Copy, vec2)); // checked
         
-        if (angleDiff < minResult)
+        if (angleDiff > lastAngle)
         {
-            minAngle = i;
-            minResult = angleDiff;
+            if (switchedOnce)
+                close = true;
+            
+            step = -step;
+            switchedOnce = true;
         }
+        
+        if (angleDiff < 10 && !divided)
+        {
+            step /= 10;
+            divided = true;
+        }
+        
+        lastAngle = angleDiff;
+        cycles++;
     }
     
-    MatrixPtr mat2 = MatrixPtr(new Matrix());
-    mat2->rotateRoundUnitVector(chosenCrossProduct, minAngle);*/
-    
-    int cycles = 0;
-    
-     while (!close && cycles < 5000000)
-     {
-     mat->rotateRoundUnitVector(chosenCrossProduct, step);
-     vec vec1Copy = copy_vector(vec1);
-     mat->multiplyVector(&vec1Copy);
-     double angleDiff = fabs(angleBetweenVectors(vec1Copy, vec2));
-     
-     if (angleDiff > lastAngle)
-     {
-     if (switchedOnce)
-     close = true;
-     
-     step = -step;
-     switchedOnce = true;
-     }
-     
-     if (angleDiff < 10 && !divided)
-     {
-     step /= 10;
-     divided = true;
-     }
-     
-     secondLastAngle = lastAngle;
-     lastAngle = angleDiff;
-         cycles++;
-     }
-     
- //   *resultantAngle = minResult;
-    
+    *resultantAngle = lastAngle;
     
     return mat;
 }
@@ -174,7 +173,6 @@ MatrixPtr rotation_between_vectors_custom_cross(vec vec1, vec vec2, vec chosenCr
     scale_vector_to_distance(&vec2, 1);
     scale_vector_to_distance(&chosenCrossProduct, 1);
     
-    bool done = false;
     MatrixPtr vx = MatrixPtr(new Matrix());
     MatrixPtr vxSquared = MatrixPtr(new Matrix());
     double c = cosineBetweenVectors(vec1, vec2);
@@ -257,14 +255,11 @@ double angleBetweenVectors(vec vec1, vec vec2)
     double cosTheta = cosineBetweenVectors(vec1, vec2);
 
 	double angle = acos(cosTheta);
-
-    vec rightAngle = new_vector(vec1.k, -vec1.h, 0);
-    
+/*
     if (cosTheta < 0)
-  //  if (dot_product_for_vectors(rightAngle, vec2) < 0)
     {
         angle *= -1;
-    }
+    }*/
     
 	return angle;
 }
@@ -287,7 +282,7 @@ vec new_vector(double h, double k, double l)
 void scale_vector_to_distance(vec *vector, double new_distance)
 {
 	double distance = sqrt(
-			pow((*vector).h, 2) + pow((*vector).k, 2) + pow((*vector).l, 2));
+			pow(vector->h, 2) + pow(vector->k, 2) + pow(vector->l, 2));
 
 	double scale = new_distance / distance;
 
@@ -802,10 +797,10 @@ void regression_line(vector<boost::tuple<double, double, double> > values, doubl
 double minimizeParam(double &step, double &param, double (*score)(void *object),
                      void *object)
 {
-    return minimizeParameter(step, param, score, object);
+    return minimizeParameter(step, &param, score, object);
 }
 
-double minimizeParameter(double &step, double &param, double (*score)(void *object),
+double minimizeParameter(double &step, double *param, double (*score)(void *object),
                                     void *object)
 {
     double param_trials[3];
@@ -814,11 +809,11 @@ double minimizeParameter(double &step, double &param, double (*score)(void *obje
     int j = 0;
     int param_min_num = 1;
     
-    double bestParam = param;
+    double bestParam = *param;
     
     for (double i = bestParam - step; j < 3; i += step)
     {
-        param = i;
+        *param = i;
         
         double aScore = (*score)(object);
         
@@ -838,7 +833,7 @@ double minimizeParameter(double &step, double &param, double (*score)(void *obje
             param_min_num = i;
         }
     
-    param = param_trials[param_min_num];
+    *param = param_trials[param_min_num];
     (*score)(object);
     
     if (param_min_num == 1)

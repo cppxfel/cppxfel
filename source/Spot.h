@@ -9,17 +9,17 @@
 #define SPOT_H_
 
 #include <vector>
+#include "Image.h"
 #include "parameters.h"
 #include "Panel.h"
 #include "Vector.h"
+#include "LoggableObject.h"
 
-class Image;
-
-class Spot
+class Spot : LoggableObject
 {
 private:
 	vector<vector<double> > probe;
-	Image *parentImage;
+	ImageWeakPtr parentImage;
     double angleDetectorPlane;
     bool setAngle;
     bool checked;
@@ -27,32 +27,43 @@ private:
     double correctedX; double correctedY;
     double x; double y;
     bool rejected;
+    int height;
+    int length;
+    int background;
+    static double maxResolution;
+    static double minIntensity;
+    static double minCorrelation;
     
 public:
-	Spot(Image *image);
+	Spot(ImagePtr image);
 	virtual ~Spot();
 
     double weight();
-	double maximumLift(Image *image, int x, int y, bool ignoreCovers);
-	double maximumLift(Image *image, int x, int y);
-	void makeProbe(int height, int size);
+	double maximumLift(ImagePtr image, int x, int y, bool ignoreCovers);
+	double maximumLift(ImagePtr image, int x, int y);
+	void makeProbe(int height, int background, int size);
 	void setXY(int x, int y);
-	double scatteringAngle(Image *image = NULL);
-	bool isAcceptable(Image *image);
+	double scatteringAngle(ImagePtr image = ImagePtr());
+	bool isAcceptable(ImagePtr image);
 	static void sortSpots(vector<Spot *> *spots);
 	static bool spotComparison(Spot *a, Spot *b);
     double angleFromSpotToCentre(double centreX, double centreY);
     double angleInPlaneOfDetector(double centreX = 0, double centreY = 0, vec upBeam = new_vector(0, 1, 0));
-    bool isOnSameLineAsSpot(SpotPtr spot2, double tolerance);
     double resolution();
+    bool isOnSameLineAsSpot(SpotPtr otherSpot, double toleranceDegrees);
     static void writeDatFromSpots(std::string filename, std::vector<SpotPtr> spots);
+    bool isSameAs(SpotPtr spot2);
     
     Coord getXY();
     double getX(bool update = false);
     double getY(bool update = false);
     Coord getRawXY();
     vec estimatedVector();
-
+    void setUpdate();
+    bool focusOnNearbySpot(double maxShift, double trialX, double trialY, int round = 0);
+    
+    std::string spotLine();
+    
     void setRejected(bool isRejected = true)
     {
         rejected = isRejected;
@@ -88,12 +99,12 @@ public:
         checked = newCheck;
     }
     
-    Image*& getParentImage()
+    ImagePtr getParentImage()
 	{
-		return parentImage;
+		return parentImage.lock();
 	}
 
-	void setParentImage(Image*& parentImage)
+	void setParentImage(ImagePtr parentImage)
 	{
 		this->parentImage = parentImage;
 	}

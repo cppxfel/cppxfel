@@ -965,7 +965,7 @@ void GraphDrawer::partialityPlot(std::string filename, GraphMap properties, doub
 
 void GraphDrawer::plotPartialityStats()
 {
-    double threshold = 100;
+ //   double threshold = 100;
     GraphMap map;
     map["xMin"] = 0.0;
     map["xMax"] = 1;
@@ -1005,7 +1005,7 @@ void GraphDrawer::plotPartialityStats()
         if (!mtz->reflection(i)->betweenResolutions(0, 2.0))
             continue;
         */
-        double max_intensity = mtz->reflection(i)->meanIntensity();
+     //   double max_intensity = mtz->reflection(i)->meanIntensity();
         
         for (int j = 0; j < mtz->reflection(i)->millerCount(); j++)
         {
@@ -1013,7 +1013,7 @@ void GraphDrawer::plotPartialityStats()
 /*
             if (partiality < 0.2 || partiality > 1)
             	continue;*/
-            double wavelength = mtz->reflection(i)->miller(j)->getWavelength();
+           // double wavelength = mtz->reflection(i)->miller(j)->getWavelength();
             
             double percentage = mtz->reflection(i)->miller(j)->getRawIntensity();
 /*            if (percentage < 0)
@@ -1057,13 +1057,13 @@ void GraphDrawer::plotOrientationStats(vector<MtzPtr> mtzs)
         
         cctbx::miller::sym_equiv_indices indices = cctbx::miller::sym_equiv_indices(*spaceGroup, genericIndex);
         
-        unsigned long size = indices.indices().size();
+   //     unsigned long size = indices.indices().size();
         
-        cctbx::miller::index<double> position = matrix->multiplyIndex(&genericIndex);
+   //     cctbx::miller::index<double> position = matrix->multiplyIndex(&genericIndex);
         
-        double h = position[0];
-        double k = position[1];
-        double l = position[2];
+     //   double h = position[0];
+     //   double k = position[1];
+     //   double l = position[2];
         
         /*
         for (int i = 0; i < size; i++)

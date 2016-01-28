@@ -13,8 +13,13 @@
 #include <algorithm>
 #include "Vector.h"
 #include <fstream>
+#include "FileParser.h"
 
-Spot::Spot(Image *image)
+double Spot::maxResolution = 0;
+double Spot::minIntensity = 0;
+double Spot::minCorrelation = 0;
+
+Spot::Spot(ImagePtr image)
 {
 	// TODO Auto-generated constructor stub
 	probe = vector<vector<double> >();
@@ -28,8 +33,18 @@ Spot::Spot(Image *image)
     rejected = false;
     x = 0;
     y = 0;
+    height = FileParser::getKey("IMAGE_SPOT_PROBE_HEIGHT", 100);
+    background = FileParser::getKey("IMAGE_SPOT_PROBE_BACKGROUND", 10);
+    length = FileParser::getKey("IMAGE_SPOT_PROBE_PADDING", 1) * 2 + 1;
     
-	makeProbe(500, 1);
+    if (minCorrelation == 0)
+    {
+        maxResolution = FileParser::getKey("MAX_INTEGRATED_RESOLUTION", 3.0);
+        minIntensity = FileParser::getKey("IMAGE_MIN_SPOT_INTENSITY", 600.);
+        minCorrelation = FileParser::getKey("IMAGE_MIN_CORRELATION", 0.7);
+    }
+    
+	makeProbe(height, background, length);
 }
 
 Spot::~Spot()
@@ -37,7 +52,7 @@ Spot::~Spot()
 
 }
 
-bool Spot::isAcceptable(Image *image)
+bool Spot::isAcceptable(ImagePtr image)
 {
 	int length = (int)probe.size();
 	int tolerance = (length - 1) / 2;
@@ -56,15 +71,15 @@ bool Spot::isAcceptable(Image *image)
 
 double Spot::weight()
 {
-	return maximumLift(parentImage, x, y, true);
+	return maximumLift(getParentImage(), x, y, true);
 }
 
-double Spot::maximumLift(Image *image, int x, int y)
+double Spot::maximumLift(ImagePtr image, int x, int y)
 {
-	return maximumLift(image, x, y, false);
+	return maximumLift(getParentImage(), x, y, false);
 }
 
-double Spot::maximumLift(Image *image, int x, int y, bool ignoreCovers)
+double Spot::maximumLift(ImagePtr image, int x, int y, bool ignoreCovers)
 {
 	int length = (int)probe.size();
 	int tolerance = (length - 1) / 2;
@@ -103,7 +118,69 @@ double Spot::maximumLift(Image *image, int x, int y, bool ignoreCovers)
 	return (penultimate > 0 && penultimate != FLT_MAX ? penultimate : 0);
 }
 
-void Spot::makeProbe(int height, int length)
+bool Spot::focusOnNearbySpot(double maxShift, double trialX, double trialY, int round)
+{
+  //  logged << "Finding new spot for round " << round << std::endl;
+  //  sendLog(round > 1 ? LogLevelDetailed : LogLevelDebug);
+        int focusedX = trialX;
+    int focusedY = trialY;
+    this->getParentImage()->focusOnAverageMax(&focusedX, &focusedY, maxShift);
+    setXY(focusedX, focusedY);
+  //  logged << "Original position (" << trialX << ", " << trialY << ") focusing on " << focusedX << ", " << focusedY << std::endl;
+  //  sendLog(LogLevelDetailed);
+    
+    if (this->getParentImage()->valueAt(focusedX, focusedY) < minIntensity)
+        return false;
+    
+    double resol = this->resolution();
+    
+    if (resol > (1. / maxResolution)) return false;
+    if (resol < 0) return false;
+    
+    
+    std::vector<double> probeIntensities, realIntensities;
+    
+    int padding = (length - 1) / 2;
+    
+    for (int i = -padding; i < padding + 1; i++)
+    {
+        for (int j = -padding; j < padding + 1; j++)
+        {
+            if (!(this->getParentImage()->accepted(focusedX + i, focusedY + j)))
+            {
+                logged << "Unacceptable pixel for round " << round << std::endl;
+                return false;
+            }
+            
+            int probeX = i + padding;
+            int probeY = j + padding;
+            
+            double probeIntensity = probe[probeX][probeY];
+            double realIntensity = this->getParentImage()->valueAt(focusedX + i, focusedY + j);
+            
+            if (!(probeIntensity == probeIntensity && realIntensity == realIntensity))
+                continue;
+            
+            probeIntensities.push_back(probeIntensity);
+            realIntensities.push_back(realIntensity);
+        }
+    }
+    
+    double correlation = correlation_between_vectors(&probeIntensities, &realIntensities);
+    
+    logged << "Correlation: " << correlation << " for round " << round << std::endl;
+    if (round > 1)
+        sendLog(LogLevelDetailed);
+
+    if (correlation < minCorrelation)
+        return false;
+    
+    sendLog(LogLevelDetailed);
+
+    return true;
+}
+
+void Spot::makeProbe(int height, int background, int length)
 {
 	for (int i = 0; i < probe.size(); i++)
 		probe[i].clear();
@@ -140,10 +217,11 @@ void Spot::makeProbe(int height, int length)
 
 			double fraction = distance_from_centre / (double) (size + 1);
 
+            // further out the fraction, the lower the value
 			if (fraction > 1)
-				probe[i][j] = 0;
+				probe[i][j] = background;
 			else
-				probe[i][j] = (1 - fraction) * height; //(double)height * y;
+				probe[i][j] = (1 - fraction) * height + background;
 
 		}
 
@@ -156,10 +234,10 @@ void Spot::setXY(int x, int y)
 	this->y = y;
 }
 
-double Spot::scatteringAngle(Image *image)
+double Spot::scatteringAngle(ImagePtr image)
 {
     if (image == NULL)
-        image = this->parentImage;
+        image = this->getParentImage();
     
 	double beamX = image->getBeamX();
 	double beamY = image->getBeamY();
@@ -175,19 +253,15 @@ double Spot::scatteringAngle(Image *image)
 
 double Spot::resolution()
 {
-    double twoTheta = asin(scatteringAngle());
-    double theta = twoTheta / 2;
-    double wavelength = parentImage->getWavelength();
+    vec spotVec = this->estimatedVector();
     
-    double d = wavelength / (2 * sin(theta));
-    
-    return 1 / d;
+    return length_of_vector(spotVec);
 }
 
 double Spot::angleFromSpotToCentre(double centreX, double centreY)
 {
-    double beamX = parentImage->getBeamX();
-    double beamY = parentImage->getBeamY();
+    double beamX = getParentImage()->getBeamX();
+    double beamY = getParentImage()->getBeamY();
     
     vec beamCentre = new_vector(beamX, beamY, 0);
     vec circleCentre = new_vector(centreX, centreY, 0);
@@ -200,8 +274,8 @@ double Spot::angleInPlaneOfDetector(double centreX, double centreY, vec upBeam)
 {
     if (centreX == 0 && centreY == 0)
     {
-        centreX = parentImage->getBeamX();
-        centreY = parentImage->getBeamY();
+        centreX = getParentImage()->getBeamX();
+        centreY = getParentImage()->getBeamY();
     }
     
     vec centre = new_vector(centreX, centreY, 0);
@@ -212,7 +286,7 @@ double Spot::angleInPlaneOfDetector(double centreX, double centreY, vec upBeam)
     {
         std::ostringstream logged;
         logged << "spotXY:\t" << getX() << "\t" << getY() << std::endl;
-        logged << "beam:\t" << parentImage->getBeamX() << "\t" << parentImage->getBeamY() << std::endl;
+        logged << "beam:\t" << getParentImage()->getBeamX() << "\t" << getParentImage()->getBeamY() << std::endl;
         logged << "upBeam:\t" << upBeam.h << "\t" << upBeam.k << std::endl;
         logged << "centreXY:\t" << centreX << "\t" << centreY << std::endl;
         logged << "spotFromCentre:\t" << spotVecFromCentre.h << "\t" << spotVecFromCentre.k << std::endl;
@@ -235,11 +309,25 @@ bool Spot::spotComparison(Spot *a, Spot *b)
 	return (a->weight() > b->weight());
 }
 
+void Spot::setUpdate()
+{
+    getX(true);
+    getY(true);
+}
+
 Coord Spot::getXY()
 {
     Coord shift = Panel::shiftForSpot(this);
     
-    return std::make_pair(x + shift.first, y + shift.second);
+ //   logged << x << "," << shift.first << "," << y << "," << shift.second << std::endl;
+    
+    if (shift.first == FLT_MAX)
+    {
+        shift.first = 0;
+        shift.second = 0;
+    }
+
+    return std::make_pair(x - shift.first, y - shift.second);
 }
 
 double Spot::getX(bool update)
@@ -310,18 +398,18 @@ vec Spot::estimatedVector()
         return lastEstimatedVector;
     }
     */
-    double beamX = parentImage->getBeamX() * parentImage->getMmPerPixel();
-    double beamY = parentImage->getBeamY() * parentImage->getMmPerPixel();
+    double beamX = getParentImage()->getBeamX() * getParentImage()->getMmPerPixel();
+    double beamY = getParentImage()->getBeamY() * getParentImage()->getMmPerPixel();
     
-    double wavelength = parentImage->getWavelength();
+    double wavelength = getParentImage()->getWavelength();
     
-    double height = parentImage->getYDim();
+    double height = getParentImage()->getYDim();
     
-    double mmX = getX() * parentImage->getMmPerPixel();
- //   double mmY = (height - getY()) * parentImage->getMmPerPixel();
-    double mmY = getY() * parentImage->getMmPerPixel();
+    double mmX = getX() * getParentImage()->getMmPerPixel();
+ //   double mmY = (height - getY()) * getParentImage()->getMmPerPixel();
+    double mmY = getY() * getParentImage()->getMmPerPixel();
     
-    double detector_distance = parentImage->getDetectorDistance();
+    double detector_distance = getParentImage()->getDetectorDistance();
     
     vec crystalVec = new_vector(beamX, beamY, 0 - detector_distance);
     vec spotVec = new_vector(mmX, mmY, 0);
@@ -334,6 +422,20 @@ vec Spot::estimatedVector()
     reciprocalCrystalVec.k *= -1;
     
     return reciprocalCrystalVec;
+}
+
+std::string Spot::spotLine()
+{
+    std::ostringstream line;
+    
+    line << x << "\t" << y << std::endl;
+    
+    return line.str();
+}
+
+bool Spot::isSameAs(SpotPtr spot2)
+{
+    return (spot2->getX() == getX() && spot2->getY() == getY());
 }
 
 

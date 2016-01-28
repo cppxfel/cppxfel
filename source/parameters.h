@@ -86,9 +86,9 @@
 #define INITIAL_ORIENTATION_STEP 1.0
 #define MM_PER_PIXEL 0.11
 #define METROLOGY_SEARCH_SIZE 5
-#define SHOEBOX_FOREGROUND_RADIUS 1
-#define SHOEBOX_NEITHER_RADIUS 2
-#define SHOEBOX_BACKGROUND_RADIUS 3
+#define SHOEBOX_FOREGROUND_PADDING 1
+#define SHOEBOX_NEITHER_PADDING 2
+#define SHOEBOX_BACKGROUND_PADDING 3
 #define MAX_INTEGRATED_RESOLUTION 1.4
 #define WINDOW_SIZE 4
 #define SIGMA_RESOLUTION_CUTOFF 0.0
@@ -145,6 +145,12 @@ typedef enum
     MinimizationMethodNelderMead = 1,
 } MinimizationMethod;
 
+typedef enum
+{
+    PanelTagNormal = 0,
+    PanelTagBad = 1,
+} PanelTag;
+
 class Panel;
 class Logger;
 class Image;
@@ -168,7 +174,8 @@ typedef boost::shared_ptr<Panel>PanelPtr;
 typedef boost::shared_ptr<MtzManager>MtzPtr;
 typedef boost::shared_ptr<std::ostringstream> StreamPtr;
 typedef boost::shared_ptr<Logger>LoggerPtr;
-typedef boost::shared_ptr<Image>ImagePtr;
+typedef boost::shared_ptr<Image> ImagePtr;
+typedef boost::weak_ptr<Image>ImageWeakPtr;
 typedef boost::shared_ptr<ImageCluster>ImageClusterPtr;
 typedef boost::shared_ptr<Matrix>MatrixPtr;
 typedef boost::shared_ptr<IOMRefiner>IOMRefinerPtr;

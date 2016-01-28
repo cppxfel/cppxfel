@@ -191,7 +191,6 @@ Miller::Miller(MtzManager *parent, int _h, int _k, int _l)
     bFactorScale = 0;
     resol = 0;
     shift = std::make_pair(0, 0);
-    image = NULL;
     shoebox = ShoeboxPtr();
     selfPtr = MillerPtr();
     fakeFriedel = -1;
@@ -873,15 +872,15 @@ bool Miller::positiveFriedel(bool *positive, int *_isym)
     return (positives == 1 || positives == 3);*/
 }
 
-double Miller::scatteringAngle(Image *image)
+double Miller::scatteringAngle(ImagePtr image)
 {
-    double beamX = image->getBeamX();
-    double beamY = image->getBeamY();
+    double beamX = getImage()->getBeamX();
+    double beamY = getImage()->getBeamY();
     
     double distance_from_centre = sqrt(
                                       pow(lastX - beamX, 2) + pow(lastY - beamY, 2));
-    double distance_pixels = distance_from_centre * image->getMmPerPixel();
-    double detector_distance = image->getDetectorDistance();
+    double distance_pixels = distance_from_centre * getImage()->getMmPerPixel();
+    double detector_distance = getImage()->getDetectorDistance();
     
     double sinTwoTheta = sin(distance_pixels / detector_distance);
     
@@ -925,13 +924,13 @@ void Miller::positionOnDetector(MatrixPtr transformedMatrix, int *x,
     double x_coord = 0;
     double y_coord = 0;
     
-    double distance = image->getDetectorDistance();
-    double wavelength = image->getWavelength();
+    double distance = getImage()->getDetectorDistance();
+    double wavelength = getImage()->getWavelength();
     bool even = shoebox->isEven();
 
-    int beamX = image->getBeamX();
-    int beamY = image->getBeamY();
-    double mmPerPixel = image->getMmPerPixel();
+    int beamX = getImage()->getBeamX();
+    int beamY = getImage()->getBeamY();
+    double mmPerPixel = getImage()->getMmPerPixel();
     
     calculatePosition(distance, wavelength, beamX, beamY, mmPerPixel,
                       transformedMatrix, &x_coord, &y_coord);
@@ -948,7 +947,7 @@ void Miller::positionOnDetector(MatrixPtr transformedMatrix, int *x,
     if (!Panel::shouldUsePanelInfo())
     {
         int search = indexer->getSearchSize();
-        image->focusOnAverageMax(&intLastX, &intLastY, search, 1, even);
+        getImage()->focusOnAverageMax(&intLastX, &intLastY, search, 1, even);
         
         shift = std::make_pair(intLastX + 0.5 - x_coord, intLastY + 0.5 - y_coord);
         
@@ -968,7 +967,7 @@ void Miller::positionOnDetector(MatrixPtr transformedMatrix, int *x,
             int xInt = shiftedX;
             int yInt = shiftedY;
             
-            image->focusOnAverageMax(&xInt, &yInt, search, 1, even);
+            getImage()->focusOnAverageMax(&xInt, &yInt, search, 1, even);
             
             shift = std::make_pair(xInt + 0.5 - x_coord, yInt + 0.5 - y_coord);
             
@@ -979,7 +978,7 @@ void Miller::positionOnDetector(MatrixPtr transformedMatrix, int *x,
         {
             int search = indexer->getSearchSize();
             
-            image->focusOnAverageMax(&intLastX, &intLastY, search, 1, even);
+            getImage()->focusOnAverageMax(&intLastX, &intLastY, search, 1, even);
             
             *x = intLastX;
             *y = intLastY;
@@ -996,7 +995,7 @@ void Miller::makeComplexShoebox(double wavelength, double bandwidth, double mosa
 
 void Miller::integrateIntensity(MatrixPtr transformedMatrix)
 {
-    if (image == NULL)
+    if (!getImage())
         throw 1;
     
     std::ostringstream logged;
@@ -1008,11 +1007,11 @@ void Miller::integrateIntensity(MatrixPtr transformedMatrix)
         shoebox = ShoeboxPtr(new Shoebox(strongSelf));
         
         int foregroundLength = FileParser::getKey("SHOEBOX_FOREGROUND_PADDING",
-                                                  SHOEBOX_FOREGROUND_RADIUS);
+                                                  SHOEBOX_FOREGROUND_PADDING);
         int neitherLength = FileParser::getKey("SHOEBOX_NEITHER_PADDING",
-                                               SHOEBOX_NEITHER_RADIUS);
+                                               SHOEBOX_NEITHER_PADDING);
         int backgroundLength = FileParser::getKey("SHOEBOX_BACKGROUND_PADDING",
-                                                  SHOEBOX_BACKGROUND_RADIUS);
+                                                  SHOEBOX_BACKGROUND_PADDING);
         bool shoeboxEven = FileParser::getKey("SHOEBOX_MAKE_EVEN", false);
         
         logged << "Shoebox created from values " << foregroundLength << ", " << neitherLength << ", " << backgroundLength << std::endl;
@@ -1025,14 +1024,14 @@ void Miller::integrateIntensity(MatrixPtr transformedMatrix)
     
     positionOnDetector(transformedMatrix, &x, &y);
     
-    rawIntensity = image->intensityAt(x, y, shoebox, &countingSigma, 0);
+    rawIntensity = getImage()->intensityAt(x, y, shoebox, &countingSigma, 0);
 
     
     if (rawIntensity > 1000 && false)
     {
         logged << "Raw intensity " << rawIntensity << ", counting sigma " << countingSigma << " for position " << x << ", " << y << std::endl;
         Logger::mainLogger->addStream(&logged, LogLevelDebug);
-        image->printBox(x, y, 5);
+        getImage()->printBox(x, y, 5);
         shoebox->printShoebox();
     }
 }
@@ -1042,7 +1041,7 @@ void Miller::incrementOverlapMask(double hRot, double kRot)
     int x = lastX;
     int y = lastY;
     
-    image->incrementOverlapMask(x, y, shoebox);
+    getImage()->incrementOverlapMask(x, y, shoebox);
 }
 
 
@@ -1077,7 +1076,7 @@ bool Miller::isOverlapped()
     int x = lastX;
     int y = lastY;
     
-    unsigned char max = image->maximumOverlapMask(x, y, shoebox);
+    unsigned char max = getImage()->maximumOverlapMask(x, y, shoebox);
     
     return (max >= 2);
 }
@@ -1132,7 +1131,7 @@ double Miller::observedPartiality(MtzManager *reference)
 
 Miller::~Miller()
 {
-    
+//    if (shoebox) std::cout << "Shoebox still exists, deallocating Miller" << std::endl;
 }
 
 void Miller::denormalise()

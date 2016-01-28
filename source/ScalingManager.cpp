@@ -584,7 +584,7 @@ void ScalingManager::gridSearch(void)
 }
 ScalingManager::~ScalingManager(void)
 {
-    std::cout << "Deallocating scaling manager" << std::endl;
+ //   std::cout << "Deallocating scaling manager" << std::endl;
     
     delete refs;
     

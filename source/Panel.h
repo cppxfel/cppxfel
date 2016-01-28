@@ -12,6 +12,7 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include "LoggableObject.h"
 #include <boost/thread/thread.hpp>
 
 typedef enum
@@ -22,7 +23,7 @@ typedef enum
 
 typedef std::pair<double, double> Coord;
 
-class Panel
+class Panel : public LoggableObject
 {
 private:
 	Coord topLeft;
@@ -35,6 +36,7 @@ private:
     bool tiltHorizontalAxis;
 	bool beingWrittenTo;
 	int allowedSearchSpace;
+    PanelTag tag;
     double swivel;
     double gainScale;
     double height();
@@ -53,6 +55,7 @@ private:
 
 	static bool usePanelInfo;
     static vector<PanelPtr> panels;
+    static vector<PanelPtr> badPanels;
     bool addMiller(MillerPtr miller);
 
     void refineAllParameters(double windowSize);
@@ -76,11 +79,12 @@ private:
     double stdevScore(double minRes, double maxRes);
     vector<MillerPtr> millers;
 	int defaultShift;
-    std::ostringstream logged;
 
 public:
-	Panel(vector<double> dimensions);
-	virtual ~Panel();
+	Panel(vector<double> dimensions, PanelTag tag = PanelTagNormal);
+    Panel(double x1, double y1, double x2, double y2, PanelTag newTag);
+    void init(vector<double> dimensions, PanelTag newTag);
+    virtual ~Panel();
 
     static double scoreBetweenResolutions(double minRes, double maxRes);
     bool isCoordInPanel(Coord coord, Coord *topLeft = NULL, Coord *bottomRight = NULL);
@@ -89,6 +93,7 @@ public:
     static PanelPtr panelForSpot(Spot *spot);
     static PanelPtr panelForCoord(Coord coord);
 	static void setupPanel(PanelPtr panel);
+    static void removePanel(PanelPtr panel);
 	void plotVectors(int i, PlotType plotType);
 	static void plotAll(PlotType plotType);
     static void expectedBeamCentre();
@@ -114,7 +119,7 @@ public:
 		return usePanelInfo;
 	}
 
-	void setUsePanelInfo(bool useInfo)
+	static void setUsePanelInfo(bool useInfo)
 	{
 		usePanelInfo = useInfo;
 	}
@@ -123,6 +128,16 @@ public:
 	{
 		return bestShift;
 	}
+    
+    double *pointerToBestShiftX()
+    {
+        return &(bestShift.first);
+    }
+    
+    double *pointerToBestShiftY()
+    {
+        return &(bestShift.second);
+    }
 
 	void setBestShift(const Coord& bestShift)
 	{
@@ -133,6 +148,22 @@ public:
     {
         return gainScale;
     }
+    
+    static PanelPtr getPanel(int i)
+    {
+        return panels[i];
+    }
+    
+    PanelTag getTag()
+    {
+        return tag;
+    }
+    
+    void setTag(PanelTag newBad)
+    {
+        tag = newBad;
+    }
+    
 };
 
 #endif /* PANEL_H_ */

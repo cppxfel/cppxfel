@@ -162,6 +162,7 @@ void FileParser::generateFunctionList()
     parserMap["MAXIMUM_CYCLES"] = simpleInt;
     parserMap["STOP_REFINEMENT"] = simpleBool;
 
+    parserMap["APPLY_UNREFINED_PARTIALITY"] = simpleBool;
     parserMap["MINIMIZATION_METHOD"] = simpleInt;
     parserMap["NELDER_MEAD_CYCLES"] = simpleInt;
     parserMap["MEDIAN_WAVELENGTH"] = simpleBool;
@@ -254,6 +255,7 @@ void FileParser::generateFunctionList()
     parserMap["SCALING_STRATEGY"] = simpleInt;
 	parserMap["MINIMUM_REFLECTION_CUTOFF"] = simpleInt;
     parserMap["APPLY_INFLATION"] = simpleBool;
+    parserMap["MINIMUM_MULTIPLICITY"] = simpleInt;
 
 	// Indexing parameters
 
@@ -321,6 +323,7 @@ void FileParser::generateFunctionList()
     parserMap["SPOTS_PER_LATTICE"] = simpleInt;
     parserMap["RECIPROCAL_TOLERANCE"] = simpleFloat;
     parserMap["GOOD_SOLUTION_ST_DEV"] = simpleFloat;
+    parserMap["BAD_SOLUTION_ST_DEV"] = simpleFloat;
     parserMap["GOOD_SOLUTION_SUM_RATIO"] = simpleFloat;
     parserMap["GOOD_SOLUTION_HIGHEST_PEAK"] = simpleInt;
     parserMap["SOLUTION_ATTEMPTS"] = simpleInt;
@@ -329,6 +332,20 @@ void FileParser::generateFunctionList()
     parserMap["MAX_RECIPROCAL_DISTANCE"] = simpleFloat;
     parserMap["ALWAYS_FILTER_SPOTS"] = simpleBool;
     parserMap["MINIMUM_NEIGHBOURS"] = simpleInt;
+    parserMap["MINIMUM_SOLUTION_NETWORK_COUNT"] = simpleInt;
+    parserMap["SCRAMBLE_SPOT_VECTORS"] = simpleBool;
+    parserMap["NETWORK_TRIAL_LIMIT"] = simpleInt;
+    parserMap["CHECKING_COMMON_SPOTS"] = simpleBool;
+    parserMap["REJECT_IF_SPOT_COUNT"] = simpleInt;
+    parserMap["POWDER_PATTERN_STEP"] = simpleFloat;
+    
+    parserMap["IMAGE_MIN_SPOT_INTENSITY"] = simpleFloat;
+    parserMap["IMAGE_MIN_CORRELATION"] = simpleFloat;
+    parserMap["IMAGE_PIXEL_JUMP"] = simpleInt;
+    parserMap["IMAGE_SPOT_PROBE_HEIGHT"] = simpleInt;
+    parserMap["IMAGE_SPOT_PROBE_BACKGROUND"] = simpleInt;
+    parserMap["IMAGE_SPOT_PROBE_PADDING"] = simpleInt;
+    parserMap["PROBE_DISTANCES"] = doubleVector;
     
     parserMap["IGNORE_MISSING_IMAGES"] = simpleBool;
     
@@ -337,6 +354,7 @@ void FileParser::generateFunctionList()
     parserMap["COMMON_CIRCLE_THRESHOLD"] = simpleFloat;
     parserMap["MAX_UNIT_CELL"] = simpleFloat;
     parserMap["COMMON_CIRCLE_ANGLE_RANGE"] = doubleVector;
+    parserMap["RANDOM_SEED"] = simpleInt;
     
 	parserMap["PANEL_LIST"] = simpleString;
     parserMap["SKIP_LINES"] = simpleInt;
@@ -345,8 +363,14 @@ void FileParser::generateFunctionList()
 ParserFunction FileParser::splitLine(std::string line, std::string &command,
 		std::string &rest)
 {
-	int space_index = (int)line.find_first_of(splitCharMajor);
-
+    int space_index = (int)line.find_first_of(splitCharMajor);
+    
+    if (space_index == std::string::npos)
+    {
+        command = "NULL";
+        return NULL;
+    }
+    
 	command = line.substr(0, space_index);
 
 	std::ostringstream stream;
@@ -359,7 +383,7 @@ ParserFunction FileParser::splitLine(std::string line, std::string &command,
 
 	rest = line.substr(space_index + 1, std::string::npos);
 
-    if (parserMap.count(upperCommand) == 0 && upperCommand != "PANEL")
+    if (parserMap.count(upperCommand) == 0 && upperCommand != "PANEL" && upperCommand != "MASK")
     {
         std::cout << "Error: do not understand command " << upperCommand << std::endl;
         exit(1);

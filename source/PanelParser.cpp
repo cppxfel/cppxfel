@@ -23,15 +23,18 @@ PanelParser::~PanelParser()
     panels.clear();
 }
 
-void PanelParser::addPanel(std::string rest)
+void PanelParser::addPanel(std::string rest, PanelTag tag)
 {
+    std::string keyword = (tag == PanelTagNormal ? "PANEL" : "MASK");
+    
 	ParametersMap singleParameter;
 
-	this->doubleVector(&singleParameter, "PANEL", rest);
-
-	vector<double> panelCoords = boost::get<vector<double> >(singleParameter["PANEL"]);
+    this->doubleVector(&singleParameter, keyword, rest);
+    
+	vector<double> panelCoords = boost::get<vector<double> >(singleParameter[keyword]);
 
 	PanelPtr ptr = PanelPtr(new Panel(panelCoords));
+    ptr->setTag(tag);
 	Panel::setupPanel(ptr);
 	panels.push_back(ptr);
 }
@@ -81,6 +84,11 @@ void PanelParser::parse(bool fromPython)
 		{
 			addPanel(rest);
 		}
+        
+        if (command == "MASK")
+        {
+            addPanel(rest, PanelTagBad);
+        }
 	}
     
     Logger::mainLogger->addStream(&log);

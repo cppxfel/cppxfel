@@ -17,14 +17,33 @@
 #include "Spot.h"
 
 vector<PanelPtr> Panel::panels;
+vector<PanelPtr> Panel::badPanels;
 bool Panel::usePanelInfo;
 double Panel::distanceMultiplier;
 Coord Panel::beamCentre;
 
-Panel::Panel(vector<double> dimensions)
+Panel::Panel(double x1, double y1, double x2, double y2, PanelTag newTag)
+{
+    std::vector<double> dimensions;
+    dimensions.push_back(x1);
+    dimensions.push_back(y1);
+    dimensions.push_back(x2);
+    dimensions.push_back(y2);
+    
+    init(dimensions, newTag);
+}
+
+Panel::Panel(vector<double> dimensions, PanelTag newTag)
+{
+    init(dimensions, newTag);
+}
+
+void Panel::init(vector<double> dimensions, PanelTag newTag)
 {
     if (panels.size() == 0)
         usePanelInfo = true;
+    
+    tag = newTag;
     
     beingWrittenTo = false;
     // TODO Auto-generated constructor stub
@@ -65,7 +84,34 @@ Panel::Panel(vector<double> dimensions)
 
 void Panel::setupPanel(PanelPtr panel)
 {
+    if (panel->getTag() == PanelTagBad)
+    {
+        badPanels.push_back(panel);
+        return;
+    }
+    
     panels.push_back(panel);
+}
+
+
+void Panel::removePanel(PanelPtr panel)
+{
+    std::vector<PanelPtr> *panelList = &panels;
+    
+    if (panel->getTag() == PanelTagBad)
+    {
+        panelList = &badPanels;
+    }
+    
+    for (int i = 0; i < panelList->size(); i++)
+    {
+        if ((*panelList)[i] == panel)
+        {
+            panelList->erase(panelList->begin() + i);
+            return;
+        }
+    }
+
 }
 
 Panel::~Panel()
@@ -280,6 +326,15 @@ PanelPtr Panel::panelForSpot(Spot *spot)
 
 PanelPtr Panel::panelForCoord(Coord coord)
 {
+    for (int i = 0; i < badPanels.size(); i++)
+    {
+        if (badPanels[i]->isCoordInPanel(coord))
+        {
+       //     Logger::mainLogger->addString("Hit bad mask", LogLevelDetailed);
+            return PanelPtr();
+        }
+    }
+    
     for (int i = 0; i < panels.size(); i++)
     {
         if (panels[i]->isCoordInPanel(coord))
@@ -672,7 +727,7 @@ void Panel::refineDetectorDistance()
     
     while (ddStep > 0.0001 && count < 20)
     {
-        minimizeParameter(ddStep, distanceMultiplier, scoreDetectorDistance, NULL);
+        minimizeParameter(ddStep, &distanceMultiplier, scoreDetectorDistance, NULL);
         
         count++;
     }
@@ -913,10 +968,10 @@ void Panel::refineAllParameters(double windowSize)
     while (count < 25 && !minimized)
     {
         tiltHorizontalAxis = true;
-        double hozScore = minimizeParameter(xStep, this->tilt.first, tiltShiftScoreWrapper, this);
+        double hozScore = minimizeParameter(xStep, &this->tilt.first, tiltShiftScoreWrapper, this);
         
         tiltHorizontalAxis = false;
-        double vertScore = minimizeParameter(yStep, this->tilt.second, tiltShiftScoreWrapper, this);
+        double vertScore = minimizeParameter(yStep, &this->tilt.second, tiltShiftScoreWrapper, this);
         
         logged << tilt.first << "\t" << tilt.second << "\t" << hozScore << "\t" << vertScore << std::endl;
         

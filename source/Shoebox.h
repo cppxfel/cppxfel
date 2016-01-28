@@ -37,6 +37,7 @@ private:
     void compressBigShoebox(double width, double height, double angle, Box &smallBox);
 public:
     Shoebox(MillerPtr parent);
+    ~Shoebox();
     
     void printShoebox();
     void simpleShoebox(int foregroundLength, int neitherLength, int backgroundLength, bool shoeboxEven);
@@ -50,9 +51,9 @@ public:
         return shoebox[index];
     }
     
-    boost::weak_ptr<Miller> getMiller()
+    MillerPtr getMiller()
     {
-        return miller;
+        return miller.lock();
     }
     
     void setMiller(MillerPtr miller)
