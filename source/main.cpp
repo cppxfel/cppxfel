@@ -53,7 +53,7 @@ void new_main(int argc, char *argv[])
     
 	if (argc == 1)
 	{
-        std::cout << "Welcome to cppxfel version 1.0!" << std::endl;
+        std::cout << "Welcome to cppxfel version 1.1!" << std::endl;
         std::cout << "Please refer to & cite paper in Journal of Applied Crystallography (unpublished)" << std::endl << std::endl;
         std::cout << "Command order for regular structure solution:" << std::endl;
         std::cout << "\tcppxfel.run_dials shot*.pickle" << std::endl;
