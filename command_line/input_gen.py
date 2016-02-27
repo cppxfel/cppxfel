@@ -133,7 +133,7 @@ def printData(path):
 	print "Finding data for", path
 	
 	if (os.path.isfile(path)):
-		print >> output, "image", path
+		print >> output, "image", baseFile
 	
 	if os.path.isfile(spotListName):
 		print "Found spots."
