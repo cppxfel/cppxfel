@@ -11,8 +11,11 @@
 #include <algorithm>
 #include "MtzManager.h"
 #include "FileParser.h"
-
-
+#include "GaussianBeam.h"
+#include "SpectrumBeam.h"
+#include "GetterSetterMap.h"
+#include "Holder.h"
+#include "Miller.h"
 
 MtzManager *MtzManager::currentManager;
 
@@ -107,6 +110,83 @@ void MtzManager::getSteps(double *ranges[], int paramCount)
     
 }
 
+void MtzManager::addParameters(GetterSetterMapPtr map)
+{
+    if (optimisingRlpSize)
+        map->addParameter(this, getSpotSizeStatic, setSpotSizeStatic, stepSizeRlpSize, toleranceRlpSize);
+    
+    if (optimisingMosaicity)
+        map->addParameter(this, getMosaicityStatic, setMosaicityStatic, stepSizeMosaicity, toleranceMosaicity);
+    
+    if (optimisingOrientation)
+    {
+        map->addParameter(this, getHRotStatic, setHRotStatic, stepSizeOrientation, toleranceOrientation);
+        map->addParameter(this, getKRotStatic, setKRotStatic, stepSizeOrientation, toleranceOrientation);
+    }
+}
+
+double MtzManager::refinePartialitiesOrientation(int ambiguity, int cycles)
+{
+    this->setActiveAmbiguity(ambiguity);
+    
+    GetterSetterMapPtr refinementMap = GetterSetterMapPtr(new GetterSetterMap());
+    
+    addParameters(refinementMap);
+    
+    if (!beam)
+    {
+        double wavelength = bestWavelength();
+        
+        beam = GaussianBeamPtr(new GaussianBeam(wavelength, bandwidth, exponent));
+        
+        for (int i = 0; i < reflectionCount(); i++)
+        {
+            for (int j = 0; j < reflection(i)->millerCount(); j++)
+            {
+                reflection(i)->miller(j)->setBeam(beam);
+            }
+        }
+    }
+    
+    beam->addParameters(refinementMap);
+    
+    refinementMap->setEvaluationFunction(refineParameterScore, this);
+    refinementMap->setCycles(cycles);
+    
+    refinementMap->refine(GetterSetterStepSearch);
+    
+    return correlation();
+}
+
+void MtzManager::refinePartialities()
+{
+    std::vector<double> correlations;
+    double maxCorrel = -1;
+    int bestAmbiguity = 0;
+    
+    for (int i = 0; i < ambiguityCount(); i++)
+    {
+        correlations.push_back(refinePartialitiesOrientation(i, 10));
+    }
+    
+    for (int i = 0; i < ambiguityCount(); i++)
+    {
+        if (correlations[i] > maxCorrel)
+        {
+            bestAmbiguity = i;
+            maxCorrel = correlations[i];
+        }
+    }
+    
+    refinePartialitiesOrientation(bestAmbiguity);
+    double partCorrel = leastSquaresPartiality(ScoreTypePartialityCorrelation);
+    setRefPartCorrel(partCorrel);
+    
+    setRefCorrelation(correlation());
+    
+    writeToFile(std::string("ref-") + filename);
+}
+
 void MtzManager::refreshPartialities(double parameters[])
 {
     refreshPartialities(parameters[PARAM_HROT],
@@ -145,11 +225,30 @@ void MtzManager::refreshCurrentPartialities()
                         this->cellDim[2]);
 }
 
+void MtzManager::replaceBeamWithSpectrum()
+{
+    GaussianBeamPtr gaussian = boost::static_pointer_cast<GaussianBeam>(beam);
+    
+    if (gaussian)
+    {
+        SpectrumBeamPtr spectrum = SpectrumBeamPtr(new SpectrumBeam(gaussian, shared_from_this()));
+        
+        beam = spectrum;
+        
+        for (int i = 0; i < reflectionCount(); i++)
+        {
+            for (int j = 0; j < reflection(i)->millerCount(); j++)
+            {
+                reflection(i)->miller(j)->setBeam(spectrum);
+            }
+        }
+    }
+}
+
 void MtzManager::refreshPartialities(double hRot, double kRot, double aRot, double bRot, double cRot, double mosaicity,
 		double spotSize, double wavelength, double bandwidth, double exponent,
                                      double a, double b, double c)
 {
-
     this->makeSuperGaussianLookupTable(exponent);
 
     if (!matrix)
@@ -158,10 +257,10 @@ void MtzManager::refreshPartialities(double hRot, double kRot, double aRot, doub
     if (matrix->isComplex())
         this->matrix->changeOrientationMatrixDimensions(a, b, c, cellAngles[0], cellAngles[1], cellAngles[2]);
     
-    MatrixPtr firstMatrix = MatrixPtr();
+    //MatrixPtr firstMatrix = MatrixPtr();
     MatrixPtr newMatrix = MatrixPtr();
-    Miller::rotateMatrixABC(aRot, bRot, cRot, matrix, &firstMatrix);
-    Miller::rotateMatrixHKL(hRot, kRot, 0, firstMatrix, &newMatrix);
+    //Miller::rotateMatrixABC(aRot, bRot, cRot, matrix, &firstMatrix);
+    Miller::rotateMatrixHKL(hRot, kRot, 0, matrix, &newMatrix);
     
 	for (int i = 0; i < reflections.size(); i++)
 	{
@@ -328,33 +427,33 @@ double MtzManager::correlation(bool silent, double lowResolution,
 double MtzManager::rSplitWithManager(MtzManager *otherManager, bool printHits,
 		bool silent, double lowRes, double highRes, int bins,
 		vector<boost::tuple<double, double, double, int> > *correlations,
-		bool shouldLog)
+		bool shouldLog, bool freeOnly)
 {
 	StatisticsFunction *function = StatisticsManager::r_split;
 
 	return statisticsWithManager(otherManager, function, printHits, silent,
-			lowRes, highRes, bins, correlations, shouldLog);
+			lowRes, highRes, bins, correlations, shouldLog, freeOnly);
 }
 
 double MtzManager::correlationWithManager(MtzManager *otherManager,
 		bool printHits, bool silent, double lowRes, double highRes, int bins,
 		vector<boost::tuple<double, double, double, int> > *correlations,
-		bool shouldLog)
+		bool shouldLog, bool freeOnly)
 {
 	StatisticsFunction *function = StatisticsManager::cc_pearson;
 
 	return statisticsWithManager(otherManager, function, printHits, silent,
-			lowRes, highRes, bins, correlations, shouldLog);
+			lowRes, highRes, bins, correlations, shouldLog, freeOnly);
 }
 
 double MtzManager::statisticsWithManager(MtzManager *otherManager,
 		StatisticsFunction *function, bool printHits, bool silent, double lowRes,
 		double highRes, int bins,
 		vector<boost::tuple<double, double, double, int> > *correlations,
-		bool shouldLog)
+		bool shouldLog, bool freeOnly)
 {
 	return statisticsWithManager(otherManager, function, NULL, RFactorNone,
-			printHits, silent, lowRes, highRes, bins, correlations, shouldLog);
+			printHits, silent, lowRes, highRes, bins, correlations, shouldLog, freeOnly);
 }
 
 double MtzManager::rFactorWithManager(RFactorType rFactor, bool printHits,
@@ -372,7 +471,7 @@ double MtzManager::statisticsWithManager(MtzManager *otherManager,
 		RFactorType rFactor, bool printHits, bool silent, double lowRes,
 		double highRes, int bins,
 		vector<boost::tuple<double, double, double, int> > *correlations,
-		bool shouldLog)
+		bool shouldLog, bool freeOnly)
 {
 	vector<double> shells;
 
@@ -402,13 +501,13 @@ double MtzManager::statisticsWithManager(MtzManager *otherManager,
 
 	if (rFactor == RFactorNone)
 		statistic = function(this, otherManager, !printHits, &hits,
-				&multiplicity, lowRes, highRes, shouldLog);
+				&multiplicity, lowRes, highRes, false, freeOnly);
 	else
 		statistic = rFactorFunction(rFactor, this, &hits, &multiplicity, lowRes,
-				highRes);
+				highRes, freeOnly);
 
     if (!silent)
-        std::cout << "N: " << "lowRes\thighRes\tValue\tHits\tMultiplicity" << std::endl;
+        logged << "N: " << "lowRes\thighRes\tValue\tHits\tMultiplicity" << std::endl;
     
 	if (bins > 1 || !silent)
 	{
@@ -421,14 +520,14 @@ double MtzManager::statisticsWithManager(MtzManager *otherManager,
 
 			if (rFactor == RFactorNone)
 				statistic = function(this, otherManager, 1, &hits,
-						&multiplicity, shells[i], shells[i + 1], shouldLog);
+						&multiplicity, shells[i], shells[i + 1], false, freeOnly);
 			else
 				statistic = rFactorFunction(rFactor, this, &hits, &multiplicity,
-						shells[i], shells[i + 1]);
+						shells[i], shells[i + 1], freeOnly);
 
 			if (!silent)
 			{
-				std::cout << "N: " << shells[i] << "\t" << shells[i + 1] << "\t"
+				logged << "N: " << shells[i] << "\t" << shells[i + 1] << "\t"
 						<< statistic << "\t" << hits << "\t" << multiplicity
 						<< std::endl;
 			}
@@ -448,16 +547,18 @@ double MtzManager::statisticsWithManager(MtzManager *otherManager,
 
 		if (rFactor == RFactorNone)
 			statistic = function(this, otherManager, 1,  &hits,
-					&multiplicity, lowRes, highRes, shouldLog);
+					&multiplicity, lowRes, highRes, shouldLog, freeOnly);
 		else
 			statistic = rFactorFunction(rFactor, this, &hits, &multiplicity,
-					lowRes, highRes);
+					lowRes, highRes, freeOnly);
 
-		std::cout << "N: *** Overall ***" << std::endl;
-		std::cout << "N: " << lowRes << "\t" << highRes << "\t" << statistic
+		logged << "N: *** Overall ***" << std::endl;
+		logged << "N: " << lowRes << "\t" << highRes << "\t" << statistic
 				<< "\t" << hits << "\t" << multiplicity << std::endl;
 	}
 
+    sendLog();
+    
 	return statistic;
 }
 

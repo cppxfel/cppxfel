@@ -7,6 +7,7 @@ import os
 import scitbx_array_family_flex_ext
 from subprocess import call
 import StringIO
+from cppxfel import command_line_parser
 
 import_phil = "import.options"
 find_spots_phil = "find_spots.options"

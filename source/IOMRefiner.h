@@ -11,7 +11,6 @@
 #include "Image.h"
 #include "parameters.h"
 #include "IndexManager.h"
-#include "Miller.h"
 #include "Matrix.h"
 #include "MtzManager.h"
 #include "csymlib.h"
@@ -27,16 +26,14 @@ typedef enum
     RefinementTypeOrientationMatrixEarly = 0,
 	RefinementTypeDetectorWavelength = 1,
     RefinementTypeOrientationMatrixVeryEarly = 2,
-    RefinementTypeOrientationMatrixLate = 3,
-	RefinementTypeOrientationMatrixSpots = 4,
-    RefinementTypeOrientationMatrixExactSpots = 5,
-	RefinementTypeOrientationMatrixRough = 6,
-	RefinementTypeOrientationMatrixMedian = 7,
-    RefinementTypeOrientationMatrixTotalSignal = 8,
-    RefinementTypeOrientationMatrixHighestPeak = 9,
+    RefinementTypeOrientationMatrixRough = 6,
+	RefinementTypeOrientationMatrixHighestPeak = 9,
     RefinementTypeOrientationMatrixEarlySeparated = 10,
-    RefinementTypeOrientationMatrixPanelStdev = 11,
     RefinementTypeOrientationMatrixStdevOnly = 12,
+    RefinementTypeRefineLAxis = 13,
+    RefinementTypeOrientationMatrixEarlyWeighted = 14,
+    RefinementTypeOrientationMatrixReverse = 15,
+    
 } RefinementType;
 
 class IOMRefiner : public boost::enable_shared_from_this<IOMRefiner>
@@ -48,6 +45,7 @@ private:
     vector<MillerPtr> roughMillers;
 	vector<Spot *>spots;
     MatrixPtr matrix;
+    MatrixPtr lastRotatedMatrix;
     std::vector<Match> indexingMatches;
     MtzPtr lastMtz;
 
@@ -70,7 +68,6 @@ private:
     double bestHRot;
     double bestKRot;
     double bestLRot;
-	int search;
 	double testDistance;
 	double testWavelength;
 	double testSpotSize;
@@ -80,6 +77,7 @@ private:
 	int searchSize;
 	static double intensityThreshold;
     static bool absoluteIntensity;
+    static bool lowIntensityPenalty;
 	double maxResolution;
 	MtzManager *reference;
 	void calculateNearbyMillers(bool rough);
@@ -89,6 +87,7 @@ private:
 	double testBandwidth;
     double lastScore;
 	vector<vector<double> > solutions;
+    bool recalculateMillerPositions;
     
     double orientationTolerance;
     std::ostringstream logged;
@@ -99,9 +98,10 @@ public:
     void setComplexMatrix();
     virtual ~IOMRefiner();
 
+    void lockUnitCellDimensions();
     void calculateOnce();
 	void checkAllMillers(double maxResolution, double bandwidth, bool complexShoebox = false, bool perfectCalculation = true);
-	MtzPtr newMtz(int i);
+	MtzPtr newMtz(int i, bool silent = false);
 	void getWavelengthHistogram(vector<double> &wavelengths,
 			vector<int> &frequencies, LogLevel level = LogLevelDetailed, int whichAxis = 0);
 	double score(int whichAxis = 0, bool silent = false);
@@ -110,8 +110,7 @@ public:
 	void findSpots();
 	static void duplicateSpots(vector<ImagePtr>images);
 	void writeDatFromSpots(std::string filename);
-	static void scatterSpots(vector<ImagePtr> images);
-
+	
 	void matchMatrixToSpots();
 	void matchMatrixToSpots(RefinementType refinement);
 	double minimizeParameter(double *meanStep, double *param, int whichAxis = 0);
@@ -121,21 +120,19 @@ public:
 	void refineDetectorAndWavelength(MtzManager *reference = NULL);
 	void refineOrientationMatrix();
 	void refineOrientationMatrix(RefinementType refinementType);
-	double refineRoundBeamAxis(double start, double end, double wedge, bool allSolutions);
-	void refineRoundBeamAxis();
-
+	
+    void showHistogram(bool silent);
     bool millerWithinBandwidth(MillerPtr miller);
 	int getTotalReflections();
 	int getTotalReflections(double threshold);
     int getTotalReflectionsWithinBandwidth();
-    double medianIntensity();
-	int identicalSpotsAndMillers();
-	double getTotalIntegratedSignal();
-
+    
     double getRot(int rotNum);
 	void dropMillers();
 
     bool isGoodSolution();
+    bool isBasicGoodSolution();
+
     double getDetectorDistance();
     double getWavelength();
     std::string refinementSummary();
@@ -187,16 +184,6 @@ public:
 	void setImage(ImagePtr image)
 	{
 		this->image = image;
-	}
-
-	int getSearch() const
-	{
-		return search;
-	}
-
-	void setSearch(int search)
-	{
-		this->search = search;
 	}
 
 	double getHRot() const

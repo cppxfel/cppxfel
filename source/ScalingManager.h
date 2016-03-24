@@ -7,6 +7,7 @@
 #include "MtzManager.h"
 #include <memory>
 #include "definitions.h"
+#include <scitbx/lbfgsb.h>
 
 struct Scale_factor;
 

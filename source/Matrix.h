@@ -40,10 +40,19 @@ private:
     double eulerB;
     double eulerC;
     
+    static MatrixPtr identityMatrix;
 public:
     double components[16];
     
+    // for SPEEDY CALCULATIONS when you need an identity pointer. Don't change it or you'll mess everyone else up.
+    static MatrixPtr getIdentityPtr()
+    {
+        return identityMatrix;
+    }
+    
+    double trace();
     bool isIdentity();
+    MatrixPtr getNegativeCopy();
     void multiply(double scalar);
     void add(MatrixPtr secondMatrix);
     void subtract(MatrixPtr secondMatrix);
@@ -55,9 +64,9 @@ public:
     std::string description(bool detailed = false, bool submatrix = false);
     Matrix inverse2DMatrix();
     MatrixPtr inverse3DMatrix();
-    Matrix transpose();
+    MatrixPtr transpose();
     cctbx::miller::index<double> multiplyIndex(cctbx::miller::index<> *index);
-    static void symmetryOperatorsForSpaceGroup(std::vector<MatrixPtr> *matrices, CSym::CCP4SPG *spaceGroup);
+    static void symmetryOperatorsForSpaceGroup(std::vector<MatrixPtr> *matrices, CSym::CCP4SPG *spaceGroup, double a, double b, double c, double alpha, double beta, double gamma);
     static MatrixPtr matrixFromEulerAngles(double theta, double phi, double psi);
     
     void translate(double x, double y, double z);
@@ -75,6 +84,7 @@ public:
     void rotateModelAxes(double alpha, double beta, double gamma);
     void newMultiplyVector(double *vector[]);
     static MatrixPtr matrixFromUnitCell(double a, double b, double c, double alpha, double beta, double gamma);
+    static std::vector<double> unitCellFromReciprocalUnitCell(double a, double b, double c, double alpha, double beta, double gamma);
     static MatrixPtr matrixFromUnitCellVersion2(double a, double b, double c, double alpha, double beta, double gamma);
     void orientationMatrixUnitCell(double *a, double *b, double *c);
     void changeOrientationMatrixDimensions(double newA, double newB, double newC, double alpha, double beta, double gamma);
@@ -100,7 +110,9 @@ public:
     void print(void);
     void recalculateOrientationMatrix();
     std::string summary();
-    
+    void setIdentity();
+    void sensibleComponents(double *returnedComponents[9]);
+
     bool isComplex()
     {
         if (unitCell)
@@ -113,6 +125,12 @@ public:
     {
         return rotation;
     }
+    
+    MatrixPtr getUnitCell()
+    {
+        return unitCell;
+    }
+    
     
     double determinant();
     Matrix operator*=(Matrix &b);

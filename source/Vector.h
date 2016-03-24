@@ -20,6 +20,7 @@ vec cross_product_for_vectors(vec vec1, vec vec2);
 double dot_product_for_vectors(vec vec1, vec vec2);
 vec new_vector(double h, double k, double l);
 double length_of_vector(vec vect);
+double length_of_vector_squared(vec vec);
 double distance_between_vectors(vec vec1, vec vec2);
 double angleBetweenVectors(vec vec1, vec vec2);
 double cosineBetweenVectors(vec vec1, vec vec2);
@@ -74,5 +75,7 @@ double standard_deviation(vector<double> *values, vector<double> *weights, doubl
 
 double cartesian_to_distance(double x, double y);
 double cartesian_to_angle(double x, double y);
+std::map<double, int> histogram(std::vector<double> values, double step);
+void histogramCSV(std::string filename, std::map<double, int> map1, std::map<double, int> map2);
 
 #endif /* VECTOR_H_ */

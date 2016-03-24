@@ -16,6 +16,10 @@
 #include <fstream>
 #include "SpotVector.h"
 #include "IndexingSolution.h"
+#include "FreeLattice.h"
+#include "CSV.h"
+#include "Holder.h"
+#include "Miller.h"
 
 IndexManager::IndexManager(std::vector<ImagePtr> newImages)
 {
@@ -30,7 +34,7 @@ IndexManager::IndexManager(std::vector<ImagePtr> newImages)
     }
     
     spaceGroup = ccp4spg_load_by_ccp4_num(spaceGroupNum);
-    
+
     unitCell = FileParser::getKey("UNIT_CELL", std::vector<double>());
     
     if (unitCell.size() < 6)
@@ -39,12 +43,33 @@ IndexManager::IndexManager(std::vector<ImagePtr> newImages)
         exit(1);
     }
     
+    std::vector<double> testCell = FileParser::getKey("RECIPROCAL_UNIT_CELL", std::vector<double>());
+    
+    if (testCell.size() == 6)
+    {
+        unitCell = Matrix::unitCellFromReciprocalUnitCell(testCell[0], testCell[1], testCell[2],
+                                                              testCell[3], testCell[4], testCell[5]);
+        std::ostringstream stream;
+        
+        stream << "Unit cell from reciprocal: ";
+        
+        for (int i = 0; i < 6; i++)
+        {
+            stream << unitCell[i] << " ";
+        }
+        
+        stream << std::endl;
+        Logger::mainLogger->addStream(&stream);
+    }
+    
     newReflection = new Reflection();
     newReflection->setUnitCellDouble(&unitCell[0]);
     newReflection->setSpaceGroup(spaceGroupNum);
     
     unitCellOnly = Matrix::matrixFromUnitCell(unitCell[0], unitCell[1], unitCell[2],
                                                     unitCell[3], unitCell[4], unitCell[5]);
+    
+    
     MatrixPtr rotationMat = MatrixPtr(new Matrix());
     
     unitCellMatrix = MatrixPtr(new Matrix());
@@ -60,10 +85,14 @@ IndexManager::IndexManager(std::vector<ImagePtr> newImages)
     maxMillerIndexTrial = FileParser::getKey("MAX_MILLER_INDEX_TRIAL", 4);
     maxDistance = 0;
     
-    Matrix::symmetryOperatorsForSpaceGroup(&symOperators, spaceGroup);
+    Matrix::symmetryOperatorsForSpaceGroup(&symOperators, spaceGroup, unitCell[0], unitCell[1], unitCell[2],
+                                           unitCell[3], unitCell[4], unitCell[5]);
     
     logged << "Calculating distances of unit cell " << spaceGroupNum << std::endl;
     sendLog();
+    
+    lattice = UnitCellLatticePtr(new UnitCellLattice(unitCell[0], unitCell[1], unitCell[2],
+                                                     unitCell[3], unitCell[4], unitCell[5], spaceGroupNum));
     
     for (int i = -maxMillerIndexTrial; i <= maxMillerIndexTrial; i++)
     {
@@ -97,7 +126,7 @@ IndexManager::IndexManager(std::vector<ImagePtr> newImages)
                 unitCellMatrix->multiplyVector(&hkl_transformed);
                 
                 logged << hkl.h << "\t" << hkl.k << "\t" << hkl.l << "\t" << hkl_transformed.h << "\t" << hkl_transformed.k << "\t" << hkl_transformed.l << std::endl;
-                sendLog();
+                sendLog(LogLevelDebug);
                 
                 
                 double distance = length_of_vector(hkl_transformed);
@@ -110,7 +139,7 @@ IndexManager::IndexManager(std::vector<ImagePtr> newImages)
         }
     }
 
-    maxDistance = FileParser::getKey("MAX_RECIPROCAL_DISTANCE", 0.02);
+    maxDistance = FileParser::getKey("MAX_RECIPROCAL_DISTANCE", 0.15);
     
     smallestDistance = FLT_MAX;
     
@@ -125,13 +154,19 @@ IndexManager::IndexManager(std::vector<ImagePtr> newImages)
     
     for (int i = 0; i < vectorDistances.size(); i++)
     {
+        vec transformed = copy_vector(vectorDistances[i].first);
+        unitCellMatrix->multiplyVector(&transformed);
+        
         logged << vectorDistances[i].first.h << "\t"
          << vectorDistances[i].first.k << "\t"
          << vectorDistances[i].first.l << "\t"
+         << transformed.h << "\t"
+         << transformed.k << "\t"
+         << transformed.l << "\t"
         << vectorDistances[i].second << std::endl;
     }
     
-    sendLog();
+    sendLog(LogLevelDebug);
 }
 
 bool match_greater_than_match(Match a, Match b)
@@ -549,18 +584,26 @@ int IndexManager::indexOneImage(ImagePtr image, std::vector<MtzPtr> *mtzSubset)
 
 void IndexManager::indexThread(IndexManager *indexer, std::vector<MtzPtr> *mtzSubset, int offset)
 {
-    bool newMethod = FileParser::getKey("NEW_INDEXING_METHOD", false);
+    bool newMethod = FileParser::getKey("NEW_INDEXING_METHOD", true);
     int maxThreads = FileParser::getMaxThreads();
     std::ostringstream logged;
     
     if (newMethod)
     {
-        for (int i = offset; i < indexer->images.size(); i += maxThreads)
+        while (true)
         {
-            ImagePtr image = indexer->images[i];
-            logged << "Starting image " << i << std::endl;
+            ImagePtr image = indexer->getNextImage();
+            
+            if (!image)
+            {
+                logged << "Finishing thread " << offset << std::endl;
+                Logger::mainLogger->addStream(&logged); logged.str("");
+                return;
+            }
+            
+            logged << "Starting image " << image->getFilename() << " on thread " << offset << std::endl;
             Logger::mainLogger->addStream(&logged); logged.str("");
-
+            
             image->findIndexingSolutions();
             
             std::vector<MtzPtr> mtzs = image->getLastMtzs();
@@ -639,7 +682,6 @@ void IndexManager::powderPattern()
         {
             SpotVectorPtr spotVec = images[i]->spotVector(j);
             
-            double angle = spotVec->angleWithVertical();
             vec spotDiff = copy_vector(spotVec->getSpotDiff());
             spotDiff.h *= 106 * 20;
             spotDiff.k *= 106 * 20;
@@ -701,20 +743,28 @@ void IndexManager::powderPattern()
     
     logged << "******* DISTANCE FREQUENCY *******" << std::endl;
     
-    std::ofstream powderLog;
-    powderLog.open("powder.csv");
     double step = FileParser::getKey("POWDER_PATTERN_STEP", 0.00005);
 
+    CSV powder(3, "Distance", "Frequency", "Perfect frequency");
+    
     for (PowderHistogram::iterator it = frequencies.begin(); it != frequencies.end(); it++)
     {
         double distance = it->first * step;
         double freq = it->second.first;
         double perfect = it->second.second;
         
-        powderLog << distance << "," << freq << "," << perfect << std::endl;
+        powder.addEntry(0, distance, freq, perfect);
+        
+//        powderLog << distance << "," << freq << "," << perfect << std::endl;
     }
     
-    powderLog.close();
+    powder.writeToFile("powder.csv");
+    logged << powder.plotColumns(0, 1) << std::endl;
+    sendLog();
+    
+    lattice->powderPattern(false, "unitCellLatticePowder.csv");
+    
+  //  powderLog.close();
     
     /// angles
     
@@ -728,11 +778,13 @@ void IndexManager::powderPattern()
     double angleStep = FileParser::getKey("POWDER_PATTERN_STEP_ANGLE", 2.0) * M_PI / 180;
     double distanceTolerance = FileParser::getKey("MINIMUM_TRUST_DISTANCE", 500.);
     std::map<int, int> angleHistogram;
+    std::map<int, int> perfectAngleHistogram;
     
     for (double i = 0; i < M_PI; i += angleStep)
     {
         int angleCategory = i / angleStep;
         angleHistogram[angleCategory] = 0;
+        perfectAngleHistogram[angleCategory] = 0;
     }
     
     for (int i = 0; i < images.size(); i++)
@@ -746,37 +798,274 @@ void IndexManager::powderPattern()
         }
     }
     
-    std::ofstream angleLog;
-    angleLog.open("angle.csv");
+    std::vector<VectorDistance> perfectProbe1, perfectProbe2;
+    
+    for (int i = 0; i < vectorDistances.size(); i++)
+    {
+        double distance = vectorDistances[i].second;
+        bool chosen = false;
+        
+        if (1 / fabs(probeDistances[0] - distance) > distanceTolerance)
+        {
+            perfectProbe1.push_back(vectorDistances[i]);
+            chosen = true;
+        }
+
+        if (1 / fabs(probeDistances[1] - distance) > distanceTolerance)
+        {
+            perfectProbe2.push_back(vectorDistances[i]);
+            chosen = true;
+        }
+        
+        if (chosen)
+        {
+            logged << "Matching vector: " << vectorDistances[i].first.h << "\t" << vectorDistances[i].first.k << "\t" << vectorDistances[i].first.l << std::endl;
+            sendLog();
+        }
+
+    }
+    
+    logged << "Comparing " << perfectProbe1.size() << " against " << perfectProbe2.size() << std::endl;
+    sendLog();
+    
+    for (int i = 0; i < perfectProbe1.size(); i++)
+    {
+        for (int j = 0; j < perfectProbe2.size(); j++)
+        {
+            vec probeTransformed1 = copy_vector(perfectProbe1[i].first);
+            vec probeTransformed2 = copy_vector(perfectProbe2[j].first);
+            
+            if (perfectProbe1[i].first.h == perfectProbe2[i].first.h &&
+                perfectProbe1[i].first.k == perfectProbe2[i].first.k &&
+                perfectProbe1[i].first.l == perfectProbe2[i].first.l)
+            {
+         //       continue;
+            }
+            
+            unitCellMatrix->multiplyVector(&probeTransformed1);
+            unitCellMatrix->multiplyVector(&probeTransformed2);
+            
+            double angle = angleBetweenVectors(probeTransformed1, probeTransformed2);
+            double mirror = M_PI - angle;
+            
+            int angleCategory = angle / angleStep;
+            perfectAngleHistogram[angleCategory]++;
+            
+            angleCategory = mirror / angleStep;
+            perfectAngleHistogram[angleCategory]++;
+        }
+    }
+    
+    
+    CSV csv(3, "Angle", "Frequency", "Perfect frequency");
     
     for (std::map<int, int>::iterator it = angleHistogram.begin(); it != angleHistogram.end(); it++)
     {
         double angle = it->first * angleStep * 180 / M_PI;
         double freq = it->second;
+        double perfectFreq = 0;
         
-        angleLog << angle << "," << freq << "," << std::endl;
+        if (perfectAngleHistogram.count(it->first))
+            perfectFreq = perfectAngleHistogram[it->first];
+        
+        csv.addEntry(0, angle, freq, perfectFreq);
+        
+ //       angleLog << angle << "," << freq << "," << perfectFreq << "," << std::endl;
     }
     
-    angleLog.close();
+    csv.writeToFile("angle.csv");
+    csv.plotColumns(0, 1);
+    
+   // angleLog.close();
+}
+
+ImagePtr IndexManager::getNextImage()
+{
+    std::lock_guard<std::mutex> lock(indexMutex);
+    
+    nextImage++;
+    
+    if (nextImage >= images.size())
+    {
+        return ImagePtr();
+    }
+    else
+    {
+        return images[nextImage];
+    }
+}
+
+bool IndexManager::modifyParameters()
+{
+    int minimumSolutionNetworkCount = FileParser::getKey("MINIMUM_SOLUTION_NETWORK_COUNT", 20);
+    double distanceTolerance = FileParser::getKey("MINIMUM_TRUST_DISTANCE", 4000.);
+    double maxReciprocalDistance = FileParser::getKey("MAX_RECIPROCAL_DISTANCE", 0.15);
+    bool finish = false;
+    
+    int goodSolutions = 0;
+    int failedSolutions = 0;
+    
+    for (int i = 0; i < images.size(); i++)
+    {
+        goodSolutions += images[i]->IOMRefinerCount();
+        failedSolutions += images[i]->failedRefinerCount();
+    }
+    
+    double percentIndexed = (double)goodSolutions / (double)images.size();
+    double percentRubbish = (double)failedSolutions / (double)goodSolutions;
+    
+    logged << "Percentage indexed correctly: " << percentIndexed * 100 << "%" << std::endl;
+    logged << "Incorrect results: " << percentRubbish * 100 << "%" << std::endl;
+    
+    sendLog();
+    
+    if (goodSolutions == 0)
+        percentRubbish = 0;
+    
+    int maxThreads = FileParser::getMaxThreads();
+    double timePerImage = lastTime * (double)maxThreads / (double)images.size();
+    
+    // now we need to decide if we want to lower one of these...
+    
+    if (percentIndexed < 0.8)
+    {
+        logged << "Indexing percentage is not yet above 80%. Deciding what to do about it..." << std::endl;
+        
+        if (percentRubbish > 0.3)
+        {
+            logged << "The percentage of incorrect results is high. Multiplying the MINIMUM_SOLUTION_VECTOR_NETWORK by 1.2." << std::endl;
+            minimumSolutionNetworkCount *= 0.8;
+        }
+        else if (percentRubbish < 0.1)
+        {
+            logged << "The percentage of incorrect results is low and so might be missing good solutions as well. Multiplying the MINIMUM_SOLUTION_VECTOR_NETWORK by 0.8." << std::endl;
+            minimumSolutionNetworkCount *= 0.8;
+        }
+        
+        if (percentRubbish < 0.3)
+        {
+            logged << "The percentage of incorrect results is low and perhaps the distance tolerance is too stringent. Multiplying the distance tolerance by 0.9." << std::endl;
+            distanceTolerance *= 0.9;
+        }
+        else if (percentRubbish > 0.6)
+        {
+            logged << "The percentage of incorrect results is low and perhaps the distance tolerance is not stringent enough. Multiplying the distance tolerance by 1.1." << std::endl;
+            distanceTolerance *= 1.1;
+        }
+        
+        if (timePerImage < 45)
+        {
+            logged << "There are not many solutions but the time taken per image is very low. Perhaps we increase the distance of considered vectors in the lattice. Multiplying MAX_RECIPROCAL_DISTANCE by 1.2 and reducing MINIMUM_SOLUTION_VECTOR_NETWORK by 0.9." << std::endl;
+            minimumSolutionNetworkCount *= 0.9;
+            maxReciprocalDistance *= 1.2;
+        }
+    }
+    else if (percentIndexed >= 0.8)
+    {
+        logged << "Indexing percentage is good." << std::endl;
+        
+        if (timePerImage > 180)
+        {
+            logged << "Indexing takes longer than 3 mins per image." << std::endl;
+            
+            if (percentRubbish > 0.3)
+            {
+                logged << "A lot of time is spent wading through incorrect results. Multiplying the MINIMUM_SOLUTION_VECTOR_NETWORK value by " << 1 + percentRubbish << std::endl;
+                minimumSolutionNetworkCount *= 1 + percentRubbish / 2;
+            }
+            else
+            {
+                logged << "Not much time is wasted on incorrect results." << std::endl;
+                finish = true;
+            }
+        }
+        else
+        {
+            finish = true;
+
+        }
+    }
+    
+    FileParser::setKey("MINIMUM_SOLUTION_NETWORK_COUNT", minimumSolutionNetworkCount);
+    FileParser::setKey("MINIMUM_TRUST_DISTANCE", distanceTolerance);
+    FileParser::setKey("MAX_RECIPROCAL_DISTANCE", maxReciprocalDistance);
+    
+    logged << std::endl << " ************************ " << std::endl;
+    logged << " ****** New values ****** " << std::endl;
+    logged << " ************************ " << std::endl;
+    logged << std::endl << "MINIMUM_SOLUTION_VECTOR_NETWORK " << minimumSolutionNetworkCount << std::endl;
+    logged << "MINIMUM_TRUST_DISTANCE " << distanceTolerance << std::endl;
+    logged << "MAX_RECIPROCAL_DISTANCE " << maxReciprocalDistance << std::endl << std::endl;
+ 
+    if (finish)
+    {
+        logged << "Please copy and paste these parameters into your index.txt file." << std::endl;
+        logged << "When you wish to stop teaching, switch LEARNING_TO_INDEX to OFF." << std::endl;
+    }
+    
+    sendLog();
+    
+    return finish;
 }
 
 void IndexManager::index()
 {
+    bool learningToIndex = FileParser::getKey("LEARNING_TO_INDEX", false);
+    
+    if (learningToIndex)
+    {
+        for (int i = 0; i < images.size(); i++)
+        {
+            images[i]->setLearningToIndex(true);
+        }
+    }
+    
     int maxThreads = FileParser::getMaxThreads();
     IndexingSolution::setupStandardVectors();
     
     boost::thread_group threads;
     vector<vector<MtzPtr> > managerSubsets;
     managerSubsets.resize(maxThreads);
+    nextImage = -1;
+    int maxLearnCycles = 50;
     
-    for (int i = 0; i < maxThreads; i++)
+    for (int num = 0; num < (learningToIndex ? maxLearnCycles : 1); num++)
     {
-        boost::thread *thr = new boost::thread(indexThread, this, &managerSubsets[i], i);
-        threads.add_thread(thr);
+        time_t startcputime;
+        time(&startcputime);
+
+        for (int i = 0; i < maxThreads; i++)
+        {
+            boost::thread *thr = new boost::thread(indexThread, this, &managerSubsets[i], i);
+            threads.add_thread(thr);
+        }
+
+        threads.join_all();
+    
+        time_t endcputime;
+        time(&endcputime);
+        
+        clock_t difference = endcputime - startcputime;
+        double seconds = difference;
+        lastTime = seconds;
+        
+        if (learningToIndex && num != maxLearnCycles - 1)
+        {
+            IndexingSolution::reset();
+            bool finish = modifyParameters();
+
+            if (finish)
+                break;
+            
+            for (int i = 0; i < images.size(); i++)
+            {
+                images[i]->reset();
+            }
+        }
+
+        nextImage = -1;
     }
     
-    
-    threads.join_all();
     
     int total = 0;
     
@@ -796,6 +1085,21 @@ void IndexManager::index()
     }
 }
 
+void IndexManager::indexFromScratch()
+{
+    std::vector<double> startingData = FileParser::getKey("INDEX_STARTING_DATA", std::vector<double>());
+    
+    if (startingData.size() < 6)
+    {
+        std::cout << "INDEX_STARTING_DATA should be set to dist1, dist2, dist3, angle1, angle2, angle3" << std::endl;
+    }
+    
+    FreeLattice lattice = FreeLattice(startingData[0], startingData[1], startingData[2], startingData[3], startingData[4], startingData[5]);
+    lattice.addExpanded();
+//    lattice.addExpanded();
+    lattice.powderPattern();
+    lattice.anglePattern(false);
+}
 
 PowderHistogram IndexManager::generatePowderHistogram()
 {
@@ -870,7 +1174,6 @@ double IndexManager::metrologyTarget(void *object)
         }
     }
     
-    double minAve = minSum / minCount;
     double result = -maxSum;
     
     static_cast<IndexManager *>(object)->logged << "Metrology target result: " << result << std::endl;
@@ -930,4 +1233,214 @@ void IndexManager::refineMetrology()
     
     logged << Panel::printAll() << std::endl;
     sendLog();
+}
+
+void IndexManager::indexingParameterAnalysis()
+{
+    std::vector<double> goodNetworkCount, badNetworkCount;
+    std::vector<double> goodDistanceTrusts, badDistanceTrusts;
+    std::vector<double> goodAngleTrusts, badAngleTrusts;
+    std::vector<double> goodDistances, badDistances;
+    
+    logged << "Indexing parameter analysis." << std::endl;
+    sendLog();
+    
+    for (int i = 0; i < images.size(); i++)
+    {
+        logged << "Processing image " << images[i]->getFilename() << std::endl;
+        sendLog();
+        
+        for (int good = 0; good < 2; good++)
+        {
+            std::vector<double> *networkCount = good ? &goodNetworkCount : &badNetworkCount;
+            std::vector<double> *distanceTrusts = good ? &goodDistanceTrusts : &badDistanceTrusts;
+            std::vector<double> *angles = good ? &goodAngleTrusts : &badAngleTrusts;
+            std::vector<double> *distances = good ? &goodDistances : &badDistances;
+            
+            for (int j = 0; j < images[i]->goodOrBadSolutionCount(good); j++)
+            {
+                IndexingSolutionPtr solution = images[i]->getGoodOrBadSolution(j, good);
+                
+                networkCount->push_back(solution->spotVectorCount());
+                
+                std::vector<double> additionalTrusts = solution->totalDistanceTrusts();
+                distanceTrusts->reserve(distanceTrusts->size() + additionalTrusts.size());
+                distanceTrusts->insert(distanceTrusts->begin(), additionalTrusts.begin(), additionalTrusts.end());
+                
+                std::vector<double> additionalDistances = solution->totalDistances();
+                distances->reserve(distances->size() + additionalDistances.size());
+                distances->insert(distances->begin(), additionalDistances.begin(), additionalDistances.end());
+                
+                std::vector<double> additionalAngles = solution->totalAngles();
+                angles->reserve(angles->size() + additionalAngles.size());
+                angles->insert(angles->begin(), additionalAngles.begin(), additionalAngles.end());
+            }
+        }
+    }
+    /*
+    std::vector<double> goodNetworkCount, badNetworkCount;
+    std::vector<double> goodDistanceTrusts, badDistanceTrusts;
+    std::vector<double> goodAngleTrusts, badAngleTrusts;
+    std::vector<double> goodDistances, badDistances;
+    */
+    
+    std::map<double, int> goodNetworkCountHistogram = histogram(goodNetworkCount, 2);
+    std::map<double, int> badNetworkCountHistogram = histogram(badNetworkCount, 2);
+    histogramCSV("networkCountAnalysis.csv", goodNetworkCountHistogram, badNetworkCountHistogram);
+
+    std::map<double, int> goodDistanceTrustsHistogram = histogram(goodDistanceTrusts, 100);
+    std::map<double, int> badDistanceTrustsHistogram = histogram(badDistanceTrusts, 100);
+    histogramCSV("distanceTrustAnalysis.csv", goodDistanceTrustsHistogram, badDistanceTrustsHistogram);
+
+    double powderPatternStep = FileParser::getKey("POWDER_PATTERN_STEP", 0.001);
+    std::map<double, int> goodDistancesHistogram = histogram(goodDistances, powderPatternStep);
+    std::map<double, int> badDistancesHistogram = histogram(badDistances, powderPatternStep);
+    histogramCSV("distanceAnalysis.csv", goodDistancesHistogram, badDistancesHistogram);
+
+    std::map<double, int> goodAnglesHistogram = histogram(goodAngleTrusts, 0.05);
+    std::map<double, int> badAnglesHistogram = histogram(badAngleTrusts, 0.05);
+    histogramCSV("angleTrustAnalysis.csv", goodAnglesHistogram, badAnglesHistogram);
+}
+
+std::vector<IOMRefinerPtr> IndexManager::consolidateOrientations(ImagePtr image1, ImagePtr image2, int *oneHand, int *otherHand, int *both)
+{
+    std::vector<IOMRefinerPtr> refiners;
+    
+    for (int i = 0; i < image1->IOMRefinerCount(); i++)
+    {
+        bool found = false;
+        IOMRefinerPtr refiner1 = image1->getIOMRefiner(i);
+        
+        for (int j = 0; j < image2->IOMRefinerCount(); j++)
+        {
+            IOMRefinerPtr refiner2 = image2->getIOMRefiner(j);
+            
+            MatrixPtr mat1 = refiner1->getMatrix();
+            MatrixPtr mat2 = refiner2->getMatrix();
+            
+            if (IndexingSolution::matrixSimilarToMatrix(mat1, mat2))
+            {
+                found = true;
+                refiners.push_back(refiner1);
+                (*both)++;
+
+                // ignore refiner2 as it is duplicate
+            }
+        }
+        
+        if (found == false)
+        {
+            refiners.push_back(refiner1);
+            (*oneHand)++;
+        }
+    }
+    
+    for (int i = 0; i < image2->IOMRefinerCount(); i++)
+    {
+        IOMRefinerPtr refiner1 = image2->getIOMRefiner(i);
+        bool found = false;
+        
+        for (int j = 0; j < image1->IOMRefinerCount(); j++)
+        {
+            IOMRefinerPtr refiner2 = image1->getIOMRefiner(j);
+            
+            MatrixPtr mat1 = refiner1->getMatrix();
+            MatrixPtr mat2 = refiner2->getMatrix();
+            
+            if (IndexingSolution::matrixSimilarToMatrix(mat1, mat2))
+            {
+                found = true;
+                // ignore both as it would have been done in the previous loop
+                break;
+            }
+        }
+        
+        if (!found)
+        {
+            refiners.push_back(refiner1);
+            (*otherHand)++;
+        }
+    }
+    
+    return refiners;
+}
+
+void IndexManager::combineLists()
+{
+    IndexingSolution::setupStandardVectors();
+    
+    std::vector<ImagePtr> mergedImages;
+    logged << "Combining lists from " << images.size() << " images and " << mergeImages.size() << " images." << std::endl;
+    
+    int oneHand = 0;
+    int otherHand = 0;
+    int both = 0;
+    
+    // first we iterate through array 1
+    for (int i = 0; i < images.size(); i++)
+    {
+        ImagePtr image1 = images[i];
+        bool found = false;
+        
+        for (int j = 0; j < mergeImages.size(); j++)
+        {
+            ImagePtr image2 = mergeImages[j];
+            
+            // Are image1 and image2 the same
+            
+            if (image1->getFilename() == image2->getFilename())
+            {
+                found = true;
+                // we have a duplicate! check individual orientations
+                
+                std::vector<IOMRefinerPtr> newRefiners = consolidateOrientations(image1, image2, &oneHand, &otherHand, &both);
+                image1->clearIOMRefiners();
+                image1->setIOMRefiners(newRefiners);
+                mergedImages.push_back(image1);
+                
+                break;
+            }
+        }
+        
+        if (!found)
+        {
+            mergedImages.push_back(image1);
+            oneHand += image1->IOMRefinerCount();
+        }
+    }
+    
+    for (int i = 0; i < mergeImages.size(); i++)
+    {
+        ImagePtr image1 = mergeImages[i];
+        bool found = false;
+        
+        for (int j = 0; j < images.size(); j++)
+        {
+            ImagePtr image2 = images[j];
+            // Are image1 and image2 the same
+            
+            if (image1->getFilename() == image2->getFilename())
+            {
+                // we do not consider this image because it was covered in the last loop
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found)
+        {
+            mergedImages.push_back(image1);
+            otherHand += image1->IOMRefinerCount();
+        }
+    }
+    
+    logged << "Unique to list 1: " << oneHand << std::endl;
+    logged << "Unique to list 2: " << otherHand << std::endl;
+    logged << "Present in both lists: " << both << std::endl;
+
+    sendLog();
+    
+    images = mergedImages;
+    mergeImages.clear();
+    std::vector<ImagePtr>().swap(mergeImages);
 }

@@ -16,6 +16,8 @@
 #include "csymlib.h"
 #include "LoggableObject.h"
 #include "Holder.h"
+#include <mutex>
+#include "UnitCellLattice.h"
 
 typedef std::map<SpotVectorPtr, SpotVectorPtr> SpotVectorMap;
 typedef std::map<SpotVectorPtr, MatrixPtr> SpotVectorMatrixMap;
@@ -24,27 +26,27 @@ typedef std::map<SpotVectorPtr, SpotVectorMatrixMap > SpotVectorMatrixMap2D;
 class IndexingSolution : LoggableObject
 {
 private:
-    static std::vector<SpotVectorPtr> standardVectors;
-    static std::vector<MatrixPtr> symOperators;
     static Reflection *newReflection;
     SpotVectorMap spotVectors;
     SpotVectorMatrixMap2D matrices;
+    static UnitCellLatticePtr lattice;
+    static std::mutex setupMutex;
     
     bool vectorAgreesWithExistingVectors(SpotVectorPtr observedVector, SpotVectorPtr standardVector);
     static bool vectorMatchesVector(SpotVectorPtr firstVector, SpotVectorPtr secondVector, SpotVectorPtr *firstMatch, SpotVectorPtr *secondMatch);
     MatrixPtr createSolution(SpotVectorPtr firstVector, SpotVectorPtr secondVector, SpotVectorPtr firstStandard = SpotVectorPtr());
-    bool solutionCompatibleForMerge(IndexingSolutionPtr otherSolution);
     bool vectorPairLooksLikePair(SpotVectorPtr firstObserved, SpotVectorPtr secondObserved, SpotVectorPtr standard1, SpotVectorPtr standard2);
-    static bool allVectorMatches(SpotVectorPtr firstVector, SpotVectorPtr secondVector, std::vector<SpotVectorPtr> *firstMatches, std::vector<SpotVectorPtr> *secondMatches);
     void addVectorToList(SpotVectorPtr observedVector, SpotVectorPtr standardVector);
     void addMatrix(SpotVectorPtr observedVector1, SpotVectorPtr observedVector2, MatrixPtr solution);
     bool vectorSolutionsAreCompatible(SpotVectorPtr observedVector, SpotVectorPtr standardVector);
     static bool spotVectorHasAnAppropriateDistance(SpotVectorPtr observedVector);
-
+    
     static double distanceTolerance;
     static double distanceToleranceReciprocal;
     static double angleTolerance;
     static double solutionAngleSpread;
+    static double approximateCosineDelta;
+    static bool checkingCommonSpots;
     static int spaceGroupNum;
     static CSym::CCP4SPG *spaceGroup;
     static std::vector<double> unitCell;
@@ -74,9 +76,36 @@ public:
     std::string printNetwork();
     static void pruneSpotVectors(std::vector<SpotVectorPtr> *spotVectors);
     void removeSpotVectors(std::vector<SpotVectorPtr> *spotVectors);
-
+    static void calculateSimilarStandardVectorsForImageVectors(std::vector<SpotVectorPtr> vectors);
+    std::vector<double> totalDistances();
+    std::vector<double> totalAngles();
+    std::vector<double> totalDistanceTrusts();
+    bool spotsAreNotTooClose(SpotVectorPtr observedVector);
+    static IndexingSolutionPtr startingSolutionsForThreeSpots(std::vector<SpotPtr> *spots, std::vector<SpotVectorPtr> *spotVectors);
+    static void reset();
+    
     IndexingSolutionPtr copy();
     ~IndexingSolution();
+    
+    static int standardVectorCount()
+    {
+        return lattice->standardVectorCount();
+    }
+    
+    static SpotVectorPtr standardVector(int i)
+    {
+        return lattice->standardVector(i);
+    }
+    
+    static int symOperatorCount()
+    {
+        return lattice->symOperatorCount();
+    }
+    
+    static MatrixPtr symOperator(int i)
+    {
+        return lattice->symOperator(i);
+    }
     
     int spotVectorCount()
     {
@@ -87,6 +116,8 @@ public:
     {
         return spotVectors.size();
     }
+    
+    static double getMinDistance();
 };
 
 #endif /* defined(__cppxfel__IndexingSolution__) */

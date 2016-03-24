@@ -12,6 +12,7 @@
 #include "MtzManager.h"
 #include "parameters.h"
 #include <vector>
+#include <scitbx/lbfgsb.h>
 
 class StatisticsManager;
 

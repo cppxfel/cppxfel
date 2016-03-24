@@ -53,17 +53,17 @@ public:
 
 	static double cc_pearson(MtzManager *shot1, MtzManager *shot2, int silent,
             int *hits, double *multiplicity, double lowResolution,
-			double highResolution, bool log);
+			double highResolution, bool log = false, bool freeOnly = false);
 	double cc_pearson(int num1, int num2, int silent, int *hits,
 			double *multiplicity, double lowResolution = 0, double highResolution =
-					0, bool log = false);
+					0, bool log = false, bool freeOnly = false);
 
 	static double r_factor(RFactorType rFactor, MtzManager *shot1, int *hits,
-			double *multiplicity, double lowResolution, double highResolution);
+			double *multiplicity, double lowResolution, double highResolution, bool freeOnly = false);
 
 	static double r_split(MtzManager *shot1, MtzManager *shot2, int silent,
 			int *hits, double *multiplicity, double lowResolution,
-			double highResolution, bool log);
+			double highResolution, bool log, bool freeOnly = false);
 
 	double **cc_array;
 	double **inv_cc_array;

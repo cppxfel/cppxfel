@@ -10,6 +10,8 @@
 #include "MtzManager.h"
 #include "parameters.h"
 #include "GraphDrawer.h"
+#include "Holder.h"
+#include "Miller.h"
 
 #include "NelderMead.h"
 
@@ -236,12 +238,17 @@ double MtzManager::rSplit(double low, double high, bool withCutoff, bool set)
         Reflection *reflection = reflections1[i];
         Reflection *reflection2 = reflections2[i];
         
-        if (!reflection->betweenResolutions(low, high))
-            continue;
-        
         if (withCutoff && reflection->acceptedCount() == 0)
             continue;
         
+        if (reflection2->millerCount() == 0)
+            continue;
+        
+        if (reflection2->miller(0)->isFree())
+            continue;
+        
+        if (!reflection->betweenResolutions(low, high))
+            continue;
         
         double int1 = reflection->meanIntensity(withCutoff);
 
@@ -475,6 +482,22 @@ double MtzManager::minimizeParameter(double *meanStep, double **params,
     this->refreshPartialities((*params));
 
     return param_min_score;
+}
+
+double MtzManager::refineParameterScore(void *object)
+{
+    MtzManager *me = static_cast<MtzManager *>(object);
+    
+    for (int i = 0; i < me->reflectionCount(); i++)
+    {
+        for (int j = 0; j < me->reflection(i)->millerCount(); j++)
+        {
+            MillerPtr miller = me->reflection(i)->miller(j);
+            miller->recalculateBetterPartiality();
+        }
+    }
+    
+    return me->exclusionScore(0, 0, me->defaultScoreType);
 }
 
 double MtzManager::minimize()
@@ -790,6 +813,8 @@ double MtzManager::minimize(double (*score)(void *object, double lowRes, double 
 
 void MtzManager::gridSearch(bool silent)
 {
+    bool partialitySpectrumRefinement = FileParser::getKey("REFINE_ENERGY_SPECTRUM", false);
+    
     scoreType = defaultScoreType;
     chooseAppropriateTarget();
     std::string scoreDescription = this->describeScoreType();
@@ -816,11 +841,12 @@ void MtzManager::gridSearch(bool silent)
             setParams(firstParams);
             
             int ambiguity = getActiveAmbiguity();
-            double correl = minimize();
+            double correl = 0;
+            
+            correl = minimize();
+            
             double *params = &(*(bestParams.begin()));
             getParams(&params);
-            
-            int hits = 0;
             
             std::pair<vector<double>, double> result = std::make_pair(bestParams, correl);
             
@@ -914,6 +940,7 @@ void MtzManager::gridSearch(bool silent)
     delete[] firstParams;
     
     writeToFile(std::string("ref-") + filename);
+    writeToDat("ref-");
 }
 
 void MtzManager::excludeFromLogCorrelation()
@@ -999,7 +1026,7 @@ void MtzManager::excludeFromLogCorrelation()
         if (it->first > 0.06)
         {
             imgReflections[correlationResults[it->first]]->miller(0)->setRejected(
-                                                                              "correl", true);
+                                                                              RejectReasonCorrelation, true);
             count++;
         }
     }
@@ -1024,7 +1051,7 @@ void MtzManager::reallowPartialityOutliers()
 {
     for (int i = 0; i < reflectionCount(); i++)
     {
-        reflection(i)->miller(0)->setRejected("partiality", false);
+        reflection(i)->miller(0)->setRejected(RejectReasonPartiality, false);
     }
 }
 
@@ -1078,7 +1105,7 @@ void MtzManager::excludePartialityOutliers()
             if (imgReflection->betweenResolutions(1.7, 0))
                 continue;
             
-            imgReflection->miller(0)->setRejected("partiality", true);
+            imgReflection->miller(0)->setRejected(RejectReasonPartiality, true);
             rejectedCount++;
         }
     }
@@ -1153,10 +1180,6 @@ void MtzManager::findSteps(int param1, int param2, std::string csvName)
     double jMinParam = 0;
     double jMaxParam = 0;
     double jStep = 1;
-    
-    double kMinParam = 0;
-    double kMaxParam = 0;
-    double kStep = 1;
     
     if (param1 >= 0)
     {

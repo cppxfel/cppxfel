@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <vector>
 #include "MtzManager.h"
-
+#include <scitbx/lbfgsb.h>
 
 typedef std::map<MtzPtr, vector<Reflection *> > MtzDataMap;
 typedef std::map<MtzPtr, vector<double *> > ParameterMap;

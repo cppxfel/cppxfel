@@ -1,4 +1,4 @@
-def printSpots(filenames, majorOutput):
+def printSpots(filenames):
 	for filename in filenames:
 		fin = open(filename, 'rb')
 		strongPickle = pickle.load(fin)
@@ -16,9 +16,6 @@ def printSpots(filenames, majorOutput):
 		fout.close()
 		fin.close()
 		
-		root_name = filename.replace('_strong.pickle', '').replace('_', '')
-		print >>majorOutput, "image " + root_name + "\nspots " + new_name
-
 if __name__ == '__main__':
 	import pickle  
 	import cppxfel
@@ -26,9 +23,4 @@ if __name__ == '__main__':
 	import sys
 	
 	majorOutput = StringIO.StringIO()
-	printSpots(sys.argv[1:], majorOutput)
-
-	f = open('image_spots.dat', 'w')
-	f.write(majorOutput.getvalue())
-	f.close()
-	
+	printSpots(sys.argv[1:])

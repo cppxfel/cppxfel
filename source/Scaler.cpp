@@ -11,7 +11,8 @@
 #include <scitbx/lbfgsb.h>
 #include "Vector.h"
 #include "NelderMead.h"
-
+#include "Holder.h"
+#include "Miller.h"
 
 Scaler *Scaler::publicScaler = NULL;
 

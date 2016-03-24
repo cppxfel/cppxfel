@@ -91,6 +91,7 @@ void Logger::addStream(std::ostringstream *stream, LogLevel level)
 void Logger::awaitPrinting()
 {
     std::unique_lock<std::mutex> lck(mtx);
+    
     while (true)
     {
         printBlock.wait(lck, isReady);

@@ -559,7 +559,7 @@ void Panel::plotVectors(int i, PlotType plotType)
             
             bool under = intensity < aveIntensity * 2.5;
             under = (miller->getRawIntensity() / miller->getCountingSigma() < 17);
-            double strength = miller->getRawIntensity() / miller->getCountingSigma();
+            double strength = miller->getRawIntensity();// / miller->getCountingSigma();
             
             xRed.push_back(difference.first);
             yRed.push_back(difference.second);
@@ -831,7 +831,9 @@ void Panel::findAllParameters()
     logged << "***** NEW PANEL *****" << std::endl;
     
     if (millers.size() == 0)
+    {
         return;
+    }
     
     findShift(2, 0.4);
     this->findAxisDependence(3);

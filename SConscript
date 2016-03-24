@@ -38,10 +38,17 @@ if 'BOOST_LOCATION' in os.environ:
 	print ("Appending directory containing boost libraries: " + os.environ['BOOST_LOCATION'])
 
 source = [
+'source/Beam.cpp',
+'source/GaussianBeam.cpp',
+'source/GetterSetterMap.cpp',
+'source/SpectrumBeam.cpp',
 'boost_python/cppxfel_ext.cc',
 'source/AmbiguityBreaker.cpp',
+'source/CSV.cpp',
 'source/FileParser.cpp',
 'source/FileReader.cpp',
+'source/FreeLattice.cpp',
+'source/FreeMillerLibrary.cpp',
 'source/GraphDrawer.cpp',
 'source/Holder.cpp',
 'source/Image.cpp',
@@ -69,6 +76,7 @@ source = [
 'source/Spot.cpp',
 'source/SpotVector.cpp',
 'source/StatisticsManager.cpp',
+'source/UnitCellLattice.cpp',
 'source/Vector.cpp',
 'source/Wiki.cpp',
 'source/XManager.cpp',

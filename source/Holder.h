@@ -13,8 +13,6 @@
 class Reflection;
 
 #include "parameters.h"
-#include "Miller.h"
-#include "MtzGrouper.h"
 #include "headers/csymlib.h"
 #include <cctbx/sgtbx/space_group.h>
 #include <cctbx/sgtbx/symbols.h>
@@ -33,20 +31,19 @@ class Reflection
 {
 private:
 	vector<MillerPtr> millers;
-	int refl_id;
-	int inv_refl_id;
-	double refIntensity;
-	double refSigma;
 	double resolution;
     static space_group spaceGroup;
-    int spgNum;
+    static unsigned char spgNum;
     static space_group_type spgType;
     static asu asymmetricUnit;
     static bool hasSetup;
+    static std::mutex setupMutex;
     static bool setupUnitCell;
-    int activeAmbiguity;
+    static std::vector<MatrixPtr> flipMatrices;
+    unsigned char activeAmbiguity;
     vector<long unsigned int> reflectionIds;
     static cctbx::uctbx::unit_cell unitCell;
+    MutexPtr millerMutex;
 public:
     Reflection(float *unitCell = NULL, CSym::CCP4SPG *group = NULL);
     void setUnitCell(float *unitCell);
@@ -56,15 +53,15 @@ public:
 	MillerPtr miller(int i);
     void printDescription();
 	void addMiller(MillerPtr miller);
+    void addMillerCarefully(MillerPtr miller);
 	int millerCount();
-	Reflection *copy(bool copyMillers);
-	Reflection *copy();
+	Reflection *copy(bool copyMillers = false);
     
 	static int indexForReflection(int h, int k, int l, CSym::CCP4SPG *lowspgroup, bool inverted);
     static int reflectionIdForCoordinates(int h, int k, int l);
     
     int checkOverlaps();
-    int checkSpotOverlaps(std::vector<SpotPtr> *spots);
+    int checkSpotOverlaps(std::vector<SpotPtr> *spots, bool actuallyDelete = true);
     void reflectionDescription();
 	void calculateResolution(MtzManager *mtz);
 	void clearMillers();
@@ -94,24 +91,22 @@ public:
     
     int reflectionIdForMiller(cctbx::miller::index<> cctbxMiller);
     void generateReflectionIds();
-    void setAdditionalWeight(double weight);
     
     asu *getAsymmetricUnit()
     {
         return &asymmetricUnit;
     }
     
-    space_group *getSpaceGroup()
+    static space_group *getSpaceGroup()
     {
         return &spaceGroup;
     }
     
     void incrementAmbiguity();
-    int ambiguityCount();
-    MatrixPtr matrixForAmbiguity(int i);
+    static int ambiguityCount();
+    static MatrixPtr matrixForAmbiguity(int i);
 
-    void setSpaceGroup(int spaceGroupNum);
-    void setSpaceGroup(CSym::CCP4SPG *ccp4spg, cctbx::sgtbx::space_group_type newSpgType, asu newAsymmetricUnit);
+    static void setSpaceGroup(int spaceGroupNum);
     void setUnitCellDouble(double *theUnitCell);
 
     void resetFlip();
@@ -138,17 +133,6 @@ public:
 		this->millers = millers;
 	}
 
-	double getRefIntensity() const
-	{
-		return refIntensity;
-	}
-
-	void setRefIntensity(double refIntensity)
-	{
-		this->refIntensity = refIntensity;
-	}
-    
-
     long unsigned int getReflId()
     {
    /*     if (activeAmbiguity > ambiguityCount())
@@ -159,16 +143,6 @@ public:
         return reflectionIds[activeAmbiguity];
     }
     
-	double getRefSigma() const
-	{
-		return refSigma;
-	}
-
-	void setRefSigma(double refSigma)
-	{
-		this->refSigma = refSigma;
-	}
-
 	double getResolution() const
 	{
 		return resolution;
@@ -178,6 +152,8 @@ public:
 	{
 		this->resolution = resolution;
 	}
+    
+    static MatrixPtr getFlipMatrix(int i);
 };
 
 #endif /* HOLDER_H_ */

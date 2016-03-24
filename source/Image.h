@@ -16,6 +16,12 @@
 #include "SpotVector.h"
 #include "LoggableObject.h"
 
+typedef enum
+{
+    ImageClassCppxfel,
+    ImageClassDIALS
+} ImageClass;
+
 class IOMRefiner;
 class ImageCluster;
 
@@ -37,8 +43,13 @@ private:
 	void loadImage();
     void findSpots();
     vector<IOMRefinerPtr> indexers;
+    vector<IOMRefinerPtr> failedRefiners;
+    double metrologyMoveThreshold;
     bool shouldMaskValue;
-    bool maskedValue;
+    bool shouldMaskUnderValue;
+    int maskedValue;
+    int maskedUnderValue;
+    bool learningToIndex;
     bool fitBackgroundAsPlane;
     std::string spotsFile;
     IndexingSolutionStatus extendIndexingSolution(IndexingSolutionPtr solutionPtr, std::vector<SpotVectorPtr> existingVectors, int *failures = NULL, int added = 0);
@@ -49,8 +60,8 @@ private:
 	int xDim;
 	int yDim;
 
-	int beamX;
-	int beamY;
+	double beamX;
+	double beamY;
 	double mmPerPixel;
     bool noCircles;
     double detectorGain;
@@ -60,9 +71,9 @@ private:
 	bool pinPoint;
 
     int indexingFailureCount;
-    int minimumSolutionNetworkCount;
     
-    std::vector<SpotPtr> spots;
+    std::vector<IndexingSolutionPtr> goodSolutions;
+    std::vector<IndexingSolutionPtr> badSolutions;
     std::vector<SpotVectorPtr> spotVectors;
     double commonCircleThreshold;
     bool _hasSeeded;
@@ -78,12 +89,23 @@ private:
 	double integrateWithShoebox(int x, int y, ShoeboxPtr shoebox, double *error);
 	bool checkShoebox(ShoeboxPtr shoebox, int x, int y);
     double weightAtShoeboxIndex(ShoeboxPtr shoebox, int x, int y);
-    bool checkIndexingSolutionDuplicates(MatrixPtr newSolution, bool excludeLast = false);
+    IndexingSolutionStatus testSeedSolution(IndexingSolutionPtr newSolution, std::vector<SpotVectorPtr> &prunedVectors, int *successes);
+    IndexingSolutionPtr biggestFailedSolution;
+    std::vector<SpotVectorPtr> biggestFailedSolutionVectors;
+protected:
+    std::vector<SpotPtr> spots;
+    virtual IndexingSolutionStatus tryIndexingSolution(IndexingSolutionPtr solutionPtr);
+    virtual bool checkIndexingSolutionDuplicates(MatrixPtr newSolution, bool excludeLast = false);
+    int minimumSolutionNetworkCount;
+    
 public:
     void incrementOverlapMask(int x, int y, ShoeboxPtr shoebox);
     void incrementOverlapMask(int x, int y);
     void processSpotList();
     void writeSpotsList(std::string spotFile = "");
+    virtual std::pair<double, double> reciprocalCoordinatesToPixels(vec hkl);
+    virtual vec pixelsToReciprocalCoordinates(double xPix, double yPix);
+    virtual vec millimetresToReciprocalCoordinates(double xmm, double ymm);
     
     unsigned char overlapAt(int x, int y);
     unsigned char maximumOverlapMask(int x, int y, ShoeboxPtr shoebox);
@@ -104,8 +126,8 @@ public:
 	static void applyMaskToImages(vector<ImagePtr> images, int startX,
 			int startY, int endX, int endY);
     void refineDistances();
-    IndexingSolutionStatus tryIndexingSolution(IndexingSolutionPtr solutionPtr);
     std::vector<double> anglesBetweenVectorDistances(double distance1, double distance2, double tolerance);
+    void reset();
     
     void rotatedSpotPositions(MatrixPtr rotationMatrix, std::vector<vec> *spotPositions, std::vector<std::string> *spotElements);
 
@@ -163,7 +185,7 @@ public:
     
     bool checkUnitCell(double trueA, double trueB, double trueC, double tolerance);
     
-    void findIndexingSolutions();
+    virtual void findIndexingSolutions();
     void compileDistancesFromSpots(double maxReciprocalDistance = 0, double tooCloseDistance = 0, bool filter = false);
     void filterSpotVectors();
     int throwAwayIntegratedSpots(std::vector<MtzPtr> mtzs);
@@ -172,6 +194,11 @@ public:
     void removeRefiner(int j)
     {
         indexers.erase(indexers.begin() + j);
+    }
+    
+    void setIOMRefiners(std::vector<IOMRefinerPtr> refiners)
+    {
+        indexers = refiners;
     }
     
     int spotVectorCount()
@@ -316,6 +343,38 @@ public:
     void setDetectorGain(double newGain)
     {
         detectorGain = newGain;
+    }
+    
+    IndexingSolutionPtr getGoodOrBadSolution(int i, bool good = true)
+    {
+        if (good) return goodSolutions[i];
+        else return badSolutions[i];
+    }
+    
+    int goodOrBadSolutionCount(bool good = true)
+    {
+        if (good) return (int)goodSolutions.size();
+        else return (int)badSolutions.size();
+    }
+    
+    void setLearningToIndex(bool learning)
+    {
+        learningToIndex = learning;
+    }
+    
+    int failedRefinerCount()
+    {
+        return (int)failedRefiners.size();
+    }
+    
+    IOMRefinerPtr failedRefiner(int i)
+    {
+        return failedRefiners[i];
+    }
+    
+    virtual ImageClass getClass()
+    {
+        return ImageClassCppxfel;
     }
 };
 

@@ -13,6 +13,7 @@
 #include <tuple>
 #include "Matrix.h"
 #include "Logger.h"
+#include <fstream>
 
 vec reverseVector(vec vec1)
 {
@@ -122,7 +123,7 @@ MatrixPtr closest_rotation_matrix(vec vec1, vec vec2, vec chosenCrossProduct, do
     bool close = false;
     
     // we want to minimise the angle between the vectors rotating round chosen axis. This is the starting value
-    double lastAngle = fabs(angleBetweenVectors(vec1, vec2));
+    double lastCosAngle = fabs(angleBetweenVectors(vec1, vec2));
     MatrixPtr mat = MatrixPtr(new Matrix());
     
     // we step by this amount on each iteration.
@@ -135,15 +136,46 @@ MatrixPtr closest_rotation_matrix(vec vec1, vec vec2, vec chosenCrossProduct, do
     bool divided = false;
     
     int cycles = 0;
+    /*
+    double biggestCosAngle = 0;
+    double bestRotation = 0;
     
-    while (!close && cycles < 5000000)
+    std::ostringstream logged;
+    
+    for (double i = 0; i < 2 * M_PI; i += step)
+    {
+        mat->rotateRoundUnitVector(chosenCrossProduct, i);
+        vec vec1Copy = copy_vector(vec1);
+        mat->multiplyVector(&vec1Copy);
+        double cosTheta = cosineBetweenVectors(vec1Copy, vec2);
+        
+        if (cosTheta > biggestCosAngle)
+        {
+            bestRotation = i;
+            biggestCosAngle = cosTheta;
+        }
+        
+        mat->setIdentity();
+    }
+    
+    MatrixPtr mat2 = MatrixPtr(new Matrix());
+    mat2->rotateRoundUnitVector(chosenCrossProduct, bestRotation);
+    logged << mat2->description() << std::endl;
+    return mat2;
+    
+    mat->setIdentity();
+    */
+    double totalStep = 0;
+    
+    while (!close && cycles < 20000)
     {
         mat->rotateRoundUnitVector(chosenCrossProduct, step);
         vec vec1Copy = copy_vector(vec1);
         mat->multiplyVector(&vec1Copy);
-        double angleDiff = fabs(angleBetweenVectors(vec1Copy, vec2)); // checked
+        double cosTheta = cosineBetweenVectors(vec1Copy, vec2);
+        //double angleDiff = fabs(angleBetweenVectors(vec1Copy, vec2)); // checked
         
-        if (angleDiff > lastAngle)
+        if (cosTheta < lastCosAngle)
         {
             if (switchedOnce)
                 close = true;
@@ -152,19 +184,21 @@ MatrixPtr closest_rotation_matrix(vec vec1, vec vec2, vec chosenCrossProduct, do
             switchedOnce = true;
         }
         
-        if (angleDiff < 10 && !divided)
+        if (cosTheta > 0.95 && !divided)
         {
             step /= 10;
             divided = true;
         }
         
-        lastAngle = angleDiff;
+        totalStep += step;
+        lastCosAngle = cosTheta;
         cycles++;
     }
     
-    *resultantAngle = lastAngle;
+    *resultantAngle = acos(lastCosAngle);
     
     return mat;
+    
 }
 
 MatrixPtr rotation_between_vectors_custom_cross(vec vec1, vec vec2, vec chosenCrossProduct)
@@ -254,14 +288,23 @@ double angleBetweenVectors(vec vec1, vec vec2)
 {
     double cosTheta = cosineBetweenVectors(vec1, vec2);
 
+    if (cosTheta > 1)
+        cosTheta = 1;
+    
+    if (cosTheta < -1)
+        cosTheta = -1;
+    
 	double angle = acos(cosTheta);
-/*
-    if (cosTheta < 0)
-    {
-        angle *= -1;
-    }*/
+
+    if (angle != angle && (cosTheta < 1.0001))
+        angle = 0;
     
 	return angle;
+}
+
+double length_of_vector_squared(vec vec)
+{
+    return vec.h * vec.h + vec.k * vec.k + vec.l * vec.l;
 }
 
 double length_of_vector(vec vec)
@@ -293,10 +336,11 @@ void scale_vector_to_distance(vec *vector, double new_distance)
 
 double getEwaldSphereNoMatrix(vec index)
 {
+    if (index.l == 0)
+        return 0;
+
     double ewald_radius = index.h * index.h + index.k * index.k
 			+ index.l * index.l;
-	if (index.l == 0)
-		return 0;
 
 	ewald_radius /= (0 - 2 * index.l);
 	double ewald_wavelength = 1 / ewald_radius;
@@ -733,7 +777,7 @@ double least_squares_gaussian_fit(vector<double> *means,
 
 double standard_deviation(vector<double> *values, vector<double> *weights)
 {
-    double mean = weighted_mean(values, NULL);
+    double mean = weighted_mean(values, weights);
     
     return standard_deviation(values, weights, mean);
 }
@@ -842,3 +886,72 @@ double minimizeParameter(double &step, double *param, double (*score)(void *obje
     return param_scores[param_min_num];
 }
 
+std::map<double, int> histogram(std::vector<double> values, double step)
+{
+    std::map<int, int> tempHistogram;
+    
+    for (int i = 0; i < values.size(); i++)
+    {
+        if (values[i] != values[i])
+            continue;
+        
+        int category = values[i] / step;
+        
+        if (values[i] == 0)
+            category = 0;
+        
+        tempHistogram[category]++;
+    }
+    
+    std::map<double, int> realHistogram;
+    
+    if (values.size() == 0)
+        return realHistogram;
+    
+   // Logger::mainLogger->addString("Histogram has " + std::to_string((int)tempHistogram.size()) + " categories.");
+    
+    int minCategory = INT_MAX;
+    int maxCategory = -INT_MAX;
+    
+    for (std::map<int, int>::iterator it = tempHistogram.begin(); it != tempHistogram.end(); it++)
+    {
+        int category = it->first;
+        
+        if (category < minCategory)
+            minCategory = category;
+        if (category > maxCategory)
+            maxCategory = category;
+    }
+    
+    for (int i = minCategory; i <= maxCategory; i++)
+    {
+        double realStep = i * step;
+        int frequency = tempHistogram[i];
+        
+        realHistogram[realStep] = frequency;
+    }
+    
+    return realHistogram;
+}
+
+void histogramCSV(std::string filename, std::map<double, int> map1, std::map<double, int> map2)
+{
+    std::ofstream stream;
+    stream.open(filename.c_str());
+    
+    for (std::map<double, int>::iterator it = map1.begin(); it != map1.end(); it++)
+    {
+        double category = it->first;
+        int first = it->second;
+        int second = 0;
+        
+        if (map2.count(category))
+        {
+            second = map2[category];
+        }
+        
+        stream << category << "," << first << "," << second << std::endl;
+    }
+    
+    stream.close();
+}

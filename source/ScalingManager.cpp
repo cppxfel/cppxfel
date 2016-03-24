@@ -7,6 +7,8 @@
 #include <cmath>
 #include "FileParser.h"
 #include "definitions.h"
+#include "Holder.h"
+#include "Miller.h"
 
 //#include <boost/thread/thread.hpp>
 
@@ -280,7 +282,7 @@ double ScalingManager::residualsForImage(MtzManager *reference,
     
     for (int j = 0; j < image->reflectionCount(); j++)
     {
-        int refl_id = image->reflection(j)->getReflId();
+        int refl_id = (int)image->reflection(j)->getReflId();
         
         Reflection *mainImage;
         reference->findReflectionWithId(refl_id, &mainImage);

@@ -38,11 +38,13 @@ public:
 	Spot(ImagePtr image);
 	virtual ~Spot();
 
+    static void spotsAndVectorsToResolution(double lowRes, double highRes, std::vector<SpotPtr> spots, std::vector<SpotVectorPtr> spotVectors, std::vector<SpotPtr> *lowResSpots, std::vector<SpotVectorPtr> *lowResSpotVectors);
     double weight();
 	double maximumLift(ImagePtr image, int x, int y, bool ignoreCovers);
 	double maximumLift(ImagePtr image, int x, int y);
 	void makeProbe(int height, int background, int size);
-	void setXY(int x, int y);
+	void setXY(double x, double y);
+    void setXYFromEstimatedVector(vec hkl);
 	double scatteringAngle(ImagePtr image = ImagePtr());
 	bool isAcceptable(ImagePtr image);
 	static void sortSpots(vector<Spot *> *spots);
@@ -53,6 +55,7 @@ public:
     bool isOnSameLineAsSpot(SpotPtr otherSpot, double toleranceDegrees);
     static void writeDatFromSpots(std::string filename, std::vector<SpotPtr> spots);
     bool isSameAs(SpotPtr spot2);
+    double closeToSecondSpot(SpotPtr spot2, double squareMinDistance);
     
     Coord getXY();
     double getX(bool update = false);

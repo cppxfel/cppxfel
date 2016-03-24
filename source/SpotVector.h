@@ -20,7 +20,10 @@ private:
     SpotPtr secondSpot;
     bool update;
     double cachedDistance;
+    double approxResolution;
+    double minDistanceTolerance;
     
+    std::vector<SpotVectorPtr> sameLengthStandardVectors;
     vec hkl;
     vec spotDiff;
 public:
@@ -36,6 +39,8 @@ public:
     bool hasCommonSpotWithVector(SpotVectorPtr spotVector2);
     double distance();
     void calculateDistance();
+    double getResolution();
+    double getMinDistanceTolerance();
     double angleWithVertical();
     double angleWithVector(SpotVectorPtr spotVector2);
     double angleWithVector(SpotVectorPtr spotVector2, MatrixPtr mat);
@@ -47,6 +52,15 @@ public:
     SpotVectorPtr copy();
     SpotVectorPtr vectorRotatedByMatrix(MatrixPtr mat);
     std::string description();
+    void addSimilarLengthStandardVectors(std::vector<SpotVectorPtr> standardVectors, double tolerance);
+    double cosineWithVector(SpotVectorPtr spotVector2);
+    SpotVectorPtr differenceFromVector(SpotVectorPtr spotVec);
+    static SpotVectorPtr vectorBetweenSpotsFromArray(std::vector<SpotVectorPtr> vectors, SpotPtr spot1, SpotPtr spot2);
+    
+    std::vector<SpotVectorPtr> standardVectorsOfSameDistance()
+    {
+        return sameLengthStandardVectors;
+    }
     
     void setUpdate()
     {

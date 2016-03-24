@@ -13,6 +13,7 @@
 #include <cctbx/miller/sym_equiv.h>
 #include <cctbx/miller/asu.h>
 #include <cctbx/miller.h>
+#include "Miller.h"
 
 #include "FileParser.h"
 #include "StatisticsManager.h"
@@ -28,6 +29,9 @@ bool Reflection::setupUnitCell = false;
 space_group_type Reflection::spgType = cctbx::sgtbx::space_group_type();
 cctbx::sgtbx::space_group Reflection::spaceGroup = cctbx::sgtbx::space_group();
 cctbx::uctbx::unit_cell Reflection::unitCell;
+unsigned char Reflection::spgNum = 0;
+std::mutex Reflection::setupMutex;
+std::vector<MatrixPtr> Reflection::flipMatrices;
 
 MatrixPtr Reflection::matrixForAmbiguity(int i)
 {
@@ -131,6 +135,8 @@ MatrixPtr Reflection::matrixForAmbiguity(int i)
 
 int Reflection::ambiguityCount()
 {
+ //   std::cout << "spgNum: " << (int)spgNum << std::endl;
+    
     if (spgNum >= 195 && spgNum <= 199)
         return 2;
     
@@ -149,26 +155,20 @@ int Reflection::ambiguityCount()
     return 1;
 }
 
-void Reflection::setSpaceGroup(CSym::CCP4SPG *ccp4spg, cctbx::sgtbx::space_group_type newSpgType, asu newAsymmetricUnit)
-{
-    if (ccp4spg == NULL)
-        return;
-    
-    char *hallSymbol = ccp4spg_symbol_Hall(ccp4spg);
-    spgNum = ccp4spg->spg_num;
-    
-    if (hasSetup)
-        return;
-    
-    spaceGroup = space_group(hallSymbol);
-    spgType = newSpgType;
-    asymmetricUnit = newAsymmetricUnit;
-    
-    hasSetup = true;
-}
 
 void Reflection::setSpaceGroup(int spaceGroupNum)
 {
+    if (hasSetup)
+        return;
+    
+    setupMutex.lock();
+    
+    if (hasSetup)
+    {
+        setupMutex.unlock();
+        return;
+    }
+
     spgNum = spaceGroupNum;
     space_group_symbols spaceGroupSymbol = space_group_symbols(spaceGroupNum);
     std::string hallSymbol = spaceGroupSymbol.hall();
@@ -176,11 +176,20 @@ void Reflection::setSpaceGroup(int spaceGroupNum)
     if (hasSetup)
         return;
     
+    int totalAmbiguities = ambiguityCount();
+    
+    for (int i = 0; i < totalAmbiguities; i++)
+    {
+        flipMatrices.push_back(matrixForAmbiguity(i));
+    }
+    
     spaceGroup = space_group(hallSymbol);
     spgType = cctbx::sgtbx::space_group_type(spaceGroup);
     asymmetricUnit = asu(spgType);
     
     hasSetup = true;
+    
+    setupMutex.unlock();
 }
 
 int Reflection::reflectionIdForCoordinates(int h, int k, int l)
@@ -262,8 +271,6 @@ void Reflection::setUnitCell(float *theUnitCell)
 
 Reflection::Reflection(float *unitCell, CSym::CCP4SPG *spg)
 {
-    spgNum = 0;
-    
     if (spg != NULL)
         setSpaceGroup(spg->spg_num);
 
@@ -274,10 +281,6 @@ Reflection::Reflection(float *unitCell, CSym::CCP4SPG *spg)
     
     // TODO Auto-generated constructor stub
     
-    refIntensity = 0;
-    refSigma = 0;
-    refl_id = 0;
-    inv_refl_id = 0;
     resolution = 0;
     activeAmbiguity = 0;
 }
@@ -315,6 +318,20 @@ void Reflection::addMiller(MillerPtr miller)
     }
 }
 
+void Reflection::addMillerCarefully(MillerPtr miller)
+{
+    if (!millerMutex)
+    {
+        millerMutex = MutexPtr(new std::mutex());
+    }
+    
+    millerMutex->lock();
+    
+    addMiller(miller);
+    
+    millerMutex->unlock();
+}
+
 bool Reflection::betweenResolutions(double lowAngstroms, double highAngstroms)
 {
     double minD, maxD = 0;
@@ -337,11 +354,6 @@ void Reflection::removeMiller(int index)
     millers.erase(millers.begin() + index);
 }
 
-Reflection *Reflection::copy()
-{
-    return copy(false);
-}
-
 Reflection *Reflection::copy(bool copyMillers)
 {
     Reflection *newReflection = new Reflection();
@@ -349,10 +361,6 @@ Reflection *Reflection::copy(bool copyMillers)
     newReflection->spgNum = spgNum;
     newReflection->activeAmbiguity = activeAmbiguity;
     newReflection->reflectionIds = reflectionIds;
-    newReflection->refIntensity = refIntensity;
-    newReflection->refSigma = refSigma;
-    newReflection->refl_id = refl_id;
-    newReflection->inv_refl_id = inv_refl_id;
     newReflection->resolution = resolution;
     
     for (int i = 0; i < millerCount(); i++)
@@ -611,7 +619,7 @@ void Reflection::resetFlip()
 {
     for (int j = 0; j < millerCount(); j++)
     {
-        miller(j)->setFlipMatrix(MatrixPtr(new Matrix()));
+        miller(j)->setFlipMatrix(0);
     }
 }
 
@@ -619,12 +627,17 @@ void Reflection::setFlip(int i)
 {
     for (int j = 0; j < millerCount(); j++)
     {
-        MatrixPtr ambiguityMat = matrixForAmbiguity(i);
-        
-        miller(j)->setFlipMatrix(ambiguityMat);
+        miller(j)->setFlipMatrix(i);
     }
 }
 
+MatrixPtr Reflection::getFlipMatrix(int i)
+{
+    if (flipMatrices.size() == 0)
+        return Matrix::getIdentityPtr();
+    
+    return flipMatrices[i];
+}
 
 void Reflection::reflectionDescription()
 {
@@ -794,7 +807,7 @@ void Reflection::merge(WeightType weighting, double *intensity, double *sigma,
         for (int i = 0; i < millerCount(); i++)
         {
             miller(i)->setRejected(false);
-            //	miller(i)->setRejected("partiality", false);
+            //	miller(i)->setRejected(RejectReasonPartiality, false);
         }
     }
     
@@ -889,7 +902,7 @@ bool Reflection::anyAccepted()
 double Reflection::observedPartiality(MtzManager *reference, Miller *miller)
 {
     Reflection *refReflection;
-    double reflId = refl_id;
+    double reflId = getReflId();
     reference->findReflectionWithId(reflId, &refReflection);
     
     if (refReflection != NULL)
@@ -931,13 +944,13 @@ void Reflection::detailedDescription()
     std::cout << std::endl;
 }
 
-int Reflection::checkSpotOverlaps(std::vector<SpotPtr> *spots)
+int Reflection::checkSpotOverlaps(std::vector<SpotPtr> *spots, bool actuallyDelete)
 {
     int count = 0;
     
     for (int i = 0; i < millerCount(); i++)
     {
-        if (miller(i)->isOverlappedWithSpots(spots))
+        if (miller(i)->isOverlappedWithSpots(spots, actuallyDelete))
         {
             count++;
         }
@@ -962,11 +975,4 @@ int Reflection::checkOverlaps()
     return count;
 }
 
-void Reflection::setAdditionalWeight(double weight)
-{
-    for (int i = 0; i < millerCount(); i++)
-    {
-        miller(i)->setAdditionalWeight(weight);
-    }
-}
 

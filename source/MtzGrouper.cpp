@@ -14,6 +14,7 @@
 #include "csymlib.h"
 #include <boost/thread/thread.hpp>
 #include "Miller.h"
+#include "Holder.h"
 #include "lbfgs_scaling.h"
 #include "ccp4_general.h"
 #include "ccp4_parser.h"
@@ -21,7 +22,7 @@
 
 #include "FileParser.h"
 #include "GraphDrawer.h"
-
+#include "FreeMillerLibrary.h"
 
 
 MtzGrouper::MtzGrouper()
@@ -205,8 +206,6 @@ void MtzGrouper::merge(MtzManager **mergeMtz, MtzManager **unmergedMtz,
         double rSplit = 0;
         if (MtzManager::getReferenceManager() != NULL)
             rSplit = mtzManagers[i]->rSplit(0, expectedResolution, true, true);
-        if (rSplit > 0)
-            mtzManagers[i]->setAdditionalWeight(rSplit);
         
         double partCorrel = mtzManagers[i]->getRefPartCorrel();
         
@@ -372,12 +371,23 @@ void MtzGrouper::merge(MtzManager **mergeMtz, MtzManager **unmergedMtz,
     
 	logged << "N: === R split ===" << std::endl;
     sendLog();
-	idxMerge->rSplitWithManager(invMerge, false, false, 0, expectedResolution);
+	idxMerge->rSplitWithManager(invMerge, false, false, 0, expectedResolution, 20, NULL, true);
 	logged << "N: === CC half ===" << std::endl;
     sendLog();
 	idxMerge->correlationWithManager(invMerge, false, false, 0,
-			expectedResolution);
+			expectedResolution, 20, NULL, true);
     
+    if (FreeMillerLibrary::active())
+    {
+        logged << "N: === R split (free only) ===" << std::endl;
+        sendLog();
+        idxMerge->rSplitWithManager(invMerge, false, false, 0, expectedResolution, 20, NULL, true, true);
+        logged << "N: === CC half (free only) ===" << std::endl;
+        sendLog();
+        idxMerge->correlationWithManager(invMerge, false, false, 0,
+                                         expectedResolution, 20, NULL, false, true);
+    }
+        
     sendLog();
 
 	delete idxMerge;
@@ -535,7 +545,8 @@ int MtzGrouper::groupMillers(MtzManager **mergeMtz, MtzManager **unmergedMtz,
 		int start, int end)
 {
 	int mtzCount = 0;
-
+    bool fastMerge = FileParser::getKey("FAST_MERGE", false);
+    
     std::map<int, int> flipCounts;
     
     for (int i = 0; i < mtzManagers[0]->ambiguityCount(); i++)
@@ -569,9 +580,13 @@ int MtzGrouper::groupMillers(MtzManager **mergeMtz, MtzManager **unmergedMtz,
 
 		for (int j = 0; j < mtzManagers[i]->reflectionCount(); j++)
 		{
-			if (mtzManagers[i]->reflection(j)->getResolution() > cutoffRes)
+            if (fastMerge && mtzManagers[i]->reflection(j)->acceptedCount() == 0)
+                continue;
+            
+            if (mtzManagers[i]->reflection(j)->getResolution() > cutoffRes)
 				continue;
-
+            
+            
 			long unsigned int refl_id = mtzManagers[i]->reflection(j)->getReflId();
 
 			Reflection *reflection = NULL;
@@ -589,6 +604,10 @@ int MtzGrouper::groupMillers(MtzManager **mergeMtz, MtzManager **unmergedMtz,
 				{
                     MillerPtr newMiller = mtzManagers[i]->reflection(j)->miller(k);
                     
+                    if (fastMerge && !newMiller->accepted())
+                    {
+                        continue;
+                    }
 					reflection->addMiller(newMiller);
                 }
 			}

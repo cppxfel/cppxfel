@@ -6,18 +6,19 @@
 #include "cmtzlib.h"
 #include "csymlib.h"
 #include <vector>
-#include "Matrix.h"
 
-#include "Holder.h"
-#include "Miller.h"
-//#include <tr1/memory>
 #include "definitions.h"
 #include "parameters.h"
 #include <tuple>
 #include "Logger.h"
+#include "Matrix.h"
 
 using namespace CMtz;
 using namespace CSym;
+
+class Miller;
+class Reflection;
+class Matrix;
 
 typedef enum
 {
@@ -42,12 +43,13 @@ typedef enum
 
 class Miller;
 
-class MtzManager
+class MtzManager : public boost::enable_shared_from_this<MtzManager>
 {
 
 protected:
     std::string filename;
-	CCP4SPG *low_group;
+	static CCP4SPG *low_group;
+    static std::mutex spaceGroupMutex;
 	static bool reflection_comparison(Reflection *i, Reflection *j);
 
 	double extreme_index(MTZ *mtz, int max);
@@ -56,7 +58,8 @@ protected:
 	int index_for_reflection(int h, int k, int l, bool inverted);
 	void findMultiplier(MTZ *mtz, int *multiplier, int *offset);
 
-
+    BeamPtr beam;
+    
 	// minimisation stuff
 
 	vector<Reflection *> reflections;
@@ -117,8 +120,7 @@ protected:
 	double maxResolutionRlpSize;
 
     vector<double> trialUnitCell;
-    double superGaussianScale;
-    double lastExponent;
+    static double superGaussianScale;
     double *params;
     double detectorDistance;
     
@@ -135,6 +137,7 @@ protected:
 	ScoreType scoreType;
 
     MatrixPtr baseMatrix;
+    MatrixPtr rotatedMatrix;
 	static MtzManager *referenceManager;
 	MtzManager *lastReference;
 
@@ -142,10 +145,12 @@ protected:
     double wavelengthStandardDeviation();
     std::ostringstream logged;
 public:
-    vector<double> superGaussianTable;
+    static vector<double> superGaussianTable;
+    static bool setupSuperGaussian;
+    static std::mutex tableMutex;
     double bFactor;
     double externalScale;
-    int removeStrongSpots(std::vector<SpotPtr> *spots);
+    int removeStrongSpots(std::vector<SpotPtr> *spots, bool actuallyDelete = true);
     int rejectOverlaps();
 
 	MtzManager(void);
@@ -207,6 +212,7 @@ public:
 	void getRefReflections(vector<Reflection *> *refPointer,
 			vector<Reflection *> *matchPointer);
 	void reallowPartialityOutliers();
+    void replaceBeamWithSpectrum();
 
 	void setUnitCell(double a, double b, double c, double alpha, double beta,
 			double gamma);
@@ -216,29 +222,29 @@ public:
 	void copySymmetryInformationFromManager(MtzPtr toCopy);
 	void applyPolarisation(void);
 
-	void writeToFile(std::string newFilename, bool announce = false, bool shifts = false, bool includeAmbiguity = false);
-	void writeToDat();
+	void writeToFile(std::string newFilename, bool announce = false, bool shifts = false, bool includeAmbiguity = false, bool useCountingSigma = false);
+    void writeToDat(std::string prefix = "");
     void sendLog(LogLevel priority = LogLevelNormal);
 
 	double correlationWithManager(MtzManager *otherManager, bool printHits = false,
 			bool silent = true, double lowRes = 0, double highRes = 0, int bins = 20,
-			vector<boost::tuple<double, double, double, int> > *correlations = NULL, bool shouldLog = false);
+			vector<boost::tuple<double, double, double, int> > *correlations = NULL, bool shouldLog = false, bool freeOnly = false);
 
 	double rSplitWithManager(MtzManager *otherManager, bool printHits = false,
 			bool silent = true, double lowRes = 0, double highRes = 0, int bins = 20,
-			vector<boost::tuple<double, double, double, int> > *correlations = NULL, bool shouldLog = false);
+			vector<boost::tuple<double, double, double, int> > *correlations = NULL, bool shouldLog = false, bool freeOnly = false);
 
 	double statisticsWithManager(MtzManager *otherManager, StatisticsFunction *function,
 			bool printHits, bool silent, double lowRes, double highRes, int bins,
 			vector<boost::tuple<double, double, double, int> > *correlations,
-			bool shouldLog);
+			bool shouldLog, bool freeOnly = false);
 
 	double statisticsWithManager(MtzManager *otherManager,
 			StatisticsFunction *function, RFactorFunction *rFactorFunction,
 			RFactorType rFactor, bool printHits, bool silent, double lowRes,
 			double highRes, int bins,
 			vector<boost::tuple<double, double, double, int> > *correlations,
-			bool shouldLog);
+			bool shouldLog, bool freeOnly = false);
 
 	double rFactorWithManager(RFactorType rFactor, bool printHits = false, bool silent = true, double lowRes = 0,
 			double highRes = 0, int bins = 20,
@@ -273,7 +279,10 @@ public:
 	double rSplit(double low, double high, bool withCutoff = false, bool set = false);
     double belowPartialityPenalty(double low, double high);
 	std::string describeScoreType();
+    double refinePartialitiesOrientation(int ambiguity, int cycles = 30);
     
+    void refinePartialities();
+
     void refreshCurrentPartialities();
 	void refreshPartialities(double hRot, double kRot, double aRot, double bRot, double cRot, double mosaicity,
                              double spotSize, double wavelength, double bandwidth, double exponent,
@@ -301,15 +310,18 @@ public:
 			double (*score)(void *object, double lowRes, double highRes),
 			void *object, double lowRes, double highRes, double low);
 
-    void denormaliseMillers();
-    void makeSuperGaussianLookupTable(double exponent);
+    static void makeSuperGaussianLookupTable(double exponent);
     
     int ambiguityCount();
     
     void flipToActiveAmbiguity();
     void resetFlip();
-    void setAdditionalWeight(double weight);
     
+    static bool setupGaussianTable()
+    {
+        return setupSuperGaussian;
+    }
+
     double getDetectorDistance()
     {
         return detectorDistance;
@@ -350,11 +362,6 @@ public:
     double getSuperGaussianScale() const
     {
         return superGaussianScale;
-    }
-    
-    double getLastExponent() const
-    {
-        return lastExponent;
     }
     
 	double getBandwidth() const
@@ -696,6 +703,64 @@ public:
 	{
 		this->scale = scale;
 	}
+    
+    MatrixPtr getLatestMatrix();
+    void addParameters(GetterSetterMapPtr map);
+    static double refineParameterScore(void *object);
+    
+    static double getSpotSizeStatic(void *object)
+    {
+        return static_cast<MtzManager *>(object)->getSpotSize();
+    }
+    
+    static void setSpotSizeStatic(void *object, double newSize)
+    {
+        static_cast<MtzManager *>(object)->setSpotSize(newSize);
+    }
+
+    void refineParametersStepSearch(GetterSetterMap &map);
+    
+    static double getMosaicityStatic(void *object)
+    {
+        return static_cast<MtzManager *>(object)->getMosaicity();
+    }
+    
+    static void setMosaicityStatic(void *object, double newMosaicity)
+    {
+        static_cast<MtzManager *>(object)->setMosaicity(newMosaicity);
+    }
+    
+    void updateLatestMatrix()
+    {
+        if (matrix->isComplex())
+            this->matrix->changeOrientationMatrixDimensions(cellDim[0], cellDim[1], cellDim[2], cellAngles[0], cellAngles[1], cellAngles[2]);
+    
+        rotatedMatrix = matrix->copy();
+        rotatedMatrix->rotate(hRot * M_PI / 180, kRot * M_PI / 180, 0);
+    }
+    
+    static double getHRotStatic(void *object)
+    {
+        return static_cast<MtzManager *>(object)->getHRot();
+    }
+    
+    static void setHRotStatic(void *object, double newHRot)
+    {
+        static_cast<MtzManager *>(object)->setHRot(newHRot);
+        static_cast<MtzManager *>(object)->updateLatestMatrix();
+    }
+    
+    static double getKRotStatic(void *object)
+    {
+        return static_cast<MtzManager *>(object)->getKRot();
+    }
+    
+    static void setKRotStatic(void *object, double newKRot)
+    {
+        static_cast<MtzManager *>(object)->setKRot(newKRot);
+        static_cast<MtzManager *>(object)->updateLatestMatrix();
+    }
+
 };
 
 #endif

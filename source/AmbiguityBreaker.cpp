@@ -6,8 +6,8 @@
 //  Copyright (c) 2015 Division of Structural Biology Oxford. All rights reserved.
 //
 
+#include "MtzGrouper.h"
 #include "AmbiguityBreaker.h"
-#include <scitbx/lbfgsb.h>
 #include "StatisticsManager.h"
 #include "FileParser.h"
 #include <vector>

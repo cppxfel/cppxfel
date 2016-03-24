@@ -24,6 +24,7 @@ Image::Image(std::string filename, double wavelength,
              double distance)
 {
     vector<double> dims = FileParser::getKey("DETECTOR_SIZE", vector<double>());
+    learningToIndex = false;
     
     xDim = 1765;
     yDim = 1765;
@@ -39,16 +40,25 @@ Image::Image(std::string filename, double wavelength,
     noCircles = false;
     commonCircleThreshold = FileParser::getKey("COMMON_CIRCLE_THRESHOLD", 0.05);
     
-    minimumSolutionNetworkCount = FileParser::getKey("MINIMUM_SOLUTION_NETWORK_COUNT", 5);
+    minimumSolutionNetworkCount = FileParser::getKey("MINIMUM_SOLUTION_NETWORK_COUNT", 20);
     indexingFailureCount = 0;
     data = vector<int>();
     mmPerPixel = FileParser::getKey("MM_PER_PIXEL", MM_PER_PIXEL);
     vector<double> beam = FileParser::getKey("BEAM_CENTRE", vector<double>());
     
+    metrologyMoveThreshold = FileParser::getKey("METROLOGY_MOVE_THRESHOLD", 1.0);
+    
     shouldMaskValue = FileParser::hasKey("IMAGE_MASKED_VALUE");
+    shouldMaskUnderValue = FileParser::hasKey("IMAGE_IGNORE_UNDER_VALUE");
+    
+    maskedValue = 0;
+    maskedUnderValue = 0;
     
     if (shouldMaskValue)
         maskedValue = FileParser::getKey("IMAGE_MASKED_VALUE", 0);
+    
+    if (shouldMaskUnderValue)
+        maskedUnderValue = FileParser::getKey("IMAGE_MASKED_UNDER_VALUE", 0);
     
     detectorGain = FileParser::getKey("DETECTOR_GAIN", 1.0);
     
@@ -300,44 +310,29 @@ int Image::valueAt(int x, int y)
     
     return data[position] * panelGain;
 }
-/*
-void Image::focusOnSpot(int *x, int *y, int tolerance1, int tolerance2)
-{
-    Spot *spot = new Spot(shared_from_this());
-    spot->makeProbe(150, 5);
-    
-    double maxLift = 0;
-    double maxX = *x;
-    double maxY = *y;
-    
-    for (int i = *x - tolerance1; i <= *x + tolerance1; i++)
-    {
-        for (int j = *y - tolerance1; j <= *y + tolerance1; j++)
-        {
-            double lift = spot->maximumLift(shared_from_this(), i, j, true);
-            
-            if (lift > maxLift)
-            {
-                maxLift = lift;
-                maxX = i;
-                maxY = j;
-            }
-        }
-    }
-    
-    *x = maxX;
-    *y = maxY;
-}*/
 
 void Image::focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bool even)
 {
     int maxValue = 0;
     int newX = *x;
     int newY = *y;
+    int oldValue = valueAt(newX, newY);
     int adjustment = (even ? -1 : 0);
     int latestCount = 0;
     std::string bestPixels;
+    std::vector<double> values;
     
+    for (int i = *x - tolerance1 - tolerance2; i <= *x + tolerance1 + tolerance2; i++)
+    {
+        for (int j = *y - tolerance1 - tolerance2; j <= *y + tolerance1 + tolerance2; j++)
+        {
+            int aValue = valueAt(i, j);
+            
+            values.push_back(aValue);
+        }
+    }
+    
+    double stdev = standard_deviation(&values);
     
     for (int i = *x - tolerance1; i <= *x + tolerance1; i++)
     {
@@ -345,8 +340,8 @@ void Image::focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bo
         {
             double newValue = 0;
             int count = 0;
-            std::ostringstream pixelLog;
-            pixelLog << "Metrology pixels: ";
+       //     std::ostringstream pixelLog;
+       //     pixelLog << "Metrology pixels: ";
             
             for (int h = i - tolerance2; h <= i + tolerance2 + adjustment; h++)
             {
@@ -359,11 +354,11 @@ void Image::focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bo
                     newValue += addition;
                     count++;
                     
-                    pixelLog << addition << ", ";
+               //     pixelLog << addition << ", ";
                 }
             }
             
-            pixelLog << std::endl;
+          //  pixelLog << std::endl;
             
             if (newValue > maxValue)
             {
@@ -371,17 +366,17 @@ void Image::focusOnAverageMax(int *x, int *y, int tolerance1, int tolerance2, bo
                 newY = j;
                 maxValue = newValue;
                 latestCount = count;
-                bestPixels = pixelLog.str();
+          //      bestPixels = pixelLog.str();
             }
         }
     }
     
-    logged << bestPixels << std::endl;
-    logged << "Sum of best pixels: " << maxValue << " over " << latestCount << " pixels." << std::endl;
-    sendLog(LogLevelDebug);
-    
-    *x = newX;
-    *y = newY;
+    // only move if the new value is significantly higher
+    if (maxValue > oldValue + metrologyMoveThreshold * stdev)
+    {
+        *x = newX;
+        *y = newY;
+    }
 }
 
 void Image::focusOnMaximum(int *x, int *y, int tolerance, double shiftX, double shiftY)
@@ -403,8 +398,8 @@ void Image::focusOnMaximum(int *x, int *y, int tolerance, double shiftX, double 
         }
     }
     
-    if (tolerance > 0 && accepted(newX, newY))
-        printBox(newX, newY, tolerance);
+  //  if (tolerance > 0 && accepted(newX, newY))
+  //      printBox(newX, newY, tolerance);
     
     *x = newX;
     *y = newY;
@@ -491,6 +486,43 @@ bool Image::checkShoebox(ShoeboxPtr shoebox, int x, int y)
     return true;
 }
 
+std::pair<double, double> Image::reciprocalCoordinatesToPixels(vec hkl)
+{
+    double x_mm = (hkl.k * detectorDistance / (1 / wavelength + hkl.l));
+    double y_mm = (hkl.h * detectorDistance / (1 / wavelength + hkl.l));
+    
+    double x_coord = beamX - x_mm / mmPerPixel;
+    double y_coord = beamY - y_mm / mmPerPixel;
+    
+    return std::make_pair(x_coord, y_coord);
+}
+
+vec Image::pixelsToReciprocalCoordinates(double xPix, double yPix)
+{
+    double mmX = xPix * getMmPerPixel();
+    double mmY = yPix * getMmPerPixel();
+    
+    return millimetresToReciprocalCoordinates(mmX, mmY);
+}
+
+vec Image::millimetresToReciprocalCoordinates(double xmm, double ymm)
+{
+    double mmBeamX = getBeamX() * getMmPerPixel();
+    double mmBeamY = getBeamY() * getMmPerPixel();
+    
+    vec crystalVec = new_vector(mmBeamX, mmBeamY, 0 - getDetectorDistance());
+    vec spotVec = new_vector(xmm, ymm, 0);
+    vec reciprocalCrystalVec = new_vector(0, 0, 0 - 1 / getWavelength());
+    
+    vec crystalToSpot = vector_between_vectors(crystalVec, spotVec);
+    scale_vector_to_distance(&crystalToSpot, 1 / getWavelength());
+    add_vector_to_vector(&reciprocalCrystalVec, crystalToSpot);
+    
+    reciprocalCrystalVec.k *= -1;
+    
+    return reciprocalCrystalVec;
+}
+
 void Image::printBox(int x, int y, int tolerance)
 {
     std::ostringstream logged;
@@ -508,7 +540,7 @@ void Image::printBox(int x, int y, int tolerance)
     
     logged << std::endl;
     
-    Logger::mainLogger->addStream(&logged, LogLevelDebug);
+    Logger::mainLogger->addStream(&logged, LogLevelNormal);
     
 }
 
@@ -524,9 +556,6 @@ double Image::integrateFitBackgroundPlane(int x, int y, ShoeboxPtr shoebox, doub
     
     shoebox->sideLengths(&slowSide, &fastSide);
     
-    int startX = x - centreX;
-    int startY = y - centreY;
-    
     std::vector<double> xxs, xys, xs, yys, ys, xzs, yzs, zs, allXs, allYs, allZs;
     
     for (int i = 0; i < slowSide; i++)
@@ -538,6 +567,11 @@ double Image::integrateFitBackgroundPlane(int x, int y, ShoeboxPtr shoebox, doub
             int panelPixelY = (j - centreY) + y;
             
             Mask flag = flagAtShoeboxIndex(shoebox, i, j);
+            
+            if (!accepted(panelPixelX, panelPixelY))
+            {
+                return std::nan(" ");
+            }
             
             if (flag == MaskForeground || flag == MaskNeither)
                 continue;
@@ -728,8 +762,9 @@ double Image::integrateSimpleSummation(int x, int y, ShoeboxPtr shoebox, double 
     int backNum = 0;
     
     //	print = true;
-    logged << "Foreground pixels: ";
-    
+//    logged << "Foreground pixels: ";
+//    std::ostringstream logged2;
+//    logged2 << "Background pixels: ";
     
     for (int i = 0; i < slowSide; i++)
     {
@@ -743,13 +778,18 @@ double Image::integrateSimpleSummation(int x, int y, ShoeboxPtr shoebox, double 
             
             Mask flag = flagAtShoeboxIndex(shoebox, i, j);
             
+            if (!accepted(panelPixelX, panelPixelY))
+            {
+                return std::nan(" ");
+            }
+            
             if (flag == MaskForeground)
             {
                 double weight = weightAtShoeboxIndex(shoebox, i, j);
                 foreNum += weight;
                 foreground += value * weight;
                 
-                logged << value << ", ";
+           //     logged << value << ", ";
                 
                 if (value > pixelCountCutoff && pixelCountCutoff > 0)
                 {
@@ -758,15 +798,19 @@ double Image::integrateSimpleSummation(int x, int y, ShoeboxPtr shoebox, double 
             }
             else if (flag == MaskBackground)
             {
+          //      logged2 << value << ", ";
                 backNum++;
                 background += value;
             }
         }
     }
     
-    logged << std::endl;
+ /*   logged << std::endl;
     sendLog(LogLevelDebug);
     
+    logged2 << std::endl;
+    Logger::mainLogger->addStream(&logged2, LogLevelDebug);
+  */
     double aveBackground = (double) background / (double) backNum;
     double backgroundInForeground = aveBackground * (double) foreNum;
     
@@ -775,8 +819,6 @@ double Image::integrateSimpleSummation(int x, int y, ShoeboxPtr shoebox, double 
     
     double intensity = (foreground - backgroundInForeground);
     
-    if (intensity > 1000)
-        printBox(x, y, 3);
     
     return intensity;
 }
@@ -785,14 +827,14 @@ double Image::integrateWithShoebox(int x, int y, ShoeboxPtr shoebox, double *err
 {
     if (!fitBackgroundAsPlane)
     {
-        return integrateSimpleSummation(x, y, shoebox, error);
+        double intensity = integrateSimpleSummation(x, y, shoebox, error);
+        
+        return intensity;
     }
     else
     {
         return integrateFitBackgroundPlane(x, y, shoebox, error);
     }
-    
-    return 0;
 }
 
 double Image::intensityAt(int x, int y, ShoeboxPtr shoebox, double *error, int tolerance)
@@ -807,11 +849,11 @@ double Image::intensityAt(int x, int y, ShoeboxPtr shoebox, double *error, int t
         else
             focusOnAverageMax(&x1, &y1, tolerance, 1, shoebox->isEven());
     }
-    
+    /*
     if (checkShoebox(shoebox, x1, y1) == 0)
     {
         return nan("");
-    }
+    }*/
     
     double integral = integrateWithShoebox(x1, y1, shoebox, error);
     
@@ -820,18 +862,27 @@ double Image::intensityAt(int x, int y, ShoeboxPtr shoebox, double *error, int t
 
 bool Image::accepted(int x, int y)
 {
+    double value = valueAt(x, y);
+    
     if (shouldMaskValue)
     {
-        double value = valueAt(x, y);
-        
         if (value == maskedValue)
         {
-            logged << "Masking value at " << x << ", " << y << std::endl;
-            sendLog(LogLevelDebug);
             return false;
         }
     }
     
+    if (shouldMaskUnderValue)
+    {
+        if (value < maskedUnderValue)
+        {
+            return false;
+        }
+    }
+    
+    if (value == -100000)
+        return false;
+
     Coord coord = std::make_pair(x, y);
     
     PanelPtr panel = Panel::panelForCoord(coord);
@@ -1142,15 +1193,6 @@ void Image::findSpots()
                     spots.push_back(testSpot);
                 }
                 
-                double x = testSpot->getX();
-                double y = testSpot->getY();
-                /*
-                PanelPtr ptr = PanelPtr(new Panel(x - 2, y - 2, x + 2, y + 2, PanelTagBad));
-                Panel::setupPanel(ptr);
-                panelsToDelete.push_back(ptr);
-                
-                testSpot = SpotPtr(new Spot(shared_from_this()));
-                */
                 count++;
             }
         }
@@ -1165,7 +1207,7 @@ void Image::findSpots()
     sendLog();
     
     std::string basename = getBasename();
-    Spot::writeDatFromSpots(basename + "_spots.dat", spots);
+    Spot::writeDatFromSpots(basename + "_spots.csv", spots);
     writeSpotsList("_" + basename + "_strong.list");
     
     dropImage();
@@ -1202,6 +1244,8 @@ void Image::processSpotList()
         return;
     }
     
+    spots.clear();
+    
     vector<std::string> spotLines = FileReader::split(spotContents, '\n');
     
     double x = beamX;
@@ -1217,6 +1261,12 @@ void Image::processSpotList()
     newSpot->setXY(beamX - xyVec.h, beamY - xyVec.k);
     
     spots.push_back(newSpot);
+    double tooCloseDistance = 0;
+    bool rejectCloseSpots = FileParser::getKey("REJECT_CLOSE_SPOTS", false);
+    if (rejectCloseSpots)
+    {
+        tooCloseDistance = IndexingSolution::getMinDistance() * 0.7;
+    }
     
     for (int i = 0; i < spotLines.size(); i++)
     {
@@ -1239,12 +1289,30 @@ void Image::processSpotList()
         newSpot->setXY(beamX - xyVec.h, beamY - xyVec.k);
         bool add = true;
         
+        vec myVec = newSpot->estimatedVector();
+        
+        for (int j = 0; j < spots.size(); j++)
+        {
+            SpotPtr testSpot = spots[j];
+            
+            if (tooCloseDistance > 0)
+            {
+                vec testVec = testSpot->estimatedVector();
+                vec copyVec = copy_vector(myVec);
+                take_vector_away_from_vector(testVec, &copyVec);
+                
+                double distance = length_of_vector(copyVec);
+                if (distance < tooCloseDistance)
+                {
+                    add = false;
+                }
+            }
+        }
+        
         for (int j = 0; j < spots.size(); j++)
         {
             if (newSpot->isSameAs(spots[j]))
             {
-                logged << "Same spot for " << getFilename() << ", ignoring" << std::endl;
-                sendLog();
                 add = false;
             }
         }
@@ -1281,11 +1349,30 @@ void Image::compileDistancesFromSpots(double maxReciprocalDistance, double tooCl
 {
     bool rejectCloseSpots = FileParser::getKey("REJECT_CLOSE_SPOTS", false);
     double minResolution = FileParser::getKey("INDEXING_MIN_RESOLUTION", 0.0);
+    double maxResolution = FileParser::getKey("MAX_INTEGRATED_RESOLUTION", 0.0);
     
-
+    if (rejectCloseSpots && tooCloseDistance == 0)
+    {
+        tooCloseDistance = IndexingSolution::getMinDistance() * 0.7;
+    }
+    
+    int maxSpots = FileParser::getKey("REJECT_IF_SPOT_COUNT", 4000);
+    
+    if (maxSpots > 0)
+    {
+        if (spotCount() > maxSpots)
+        {
+            logged << "N: Aborting image " << getFilename() << " due to too many spots." << std::endl;
+            sendLog();
+            spotVectors.clear();
+            std::vector<SpotVectorPtr>().swap(spotVectors);
+            return;
+        }
+    }
+    
     if (maxReciprocalDistance == 0)
     {
-        maxReciprocalDistance = FileParser::getKey("MAX_RECIPROCAL_DISTANCE", 0.02);
+        maxReciprocalDistance = FileParser::getKey("MAX_RECIPROCAL_DISTANCE", 0.15);
     }
     
     spotVectors.clear();
@@ -1303,7 +1390,13 @@ void Image::compileDistancesFromSpots(double maxReciprocalDistance, double tooCl
         
         if (minResolution != 0)
         {
-            if (length_of_vector(spotPos1) > 1 / minResolution)
+            if (length_of_vector(spotPos1) < 1 / minResolution)
+                continue;
+        }
+        
+        if (maxResolution > 0)
+        {
+            if (length_of_vector(spotPos1) > 1 / maxResolution)
                 continue;
         }
         
@@ -1341,7 +1434,7 @@ void Image::compileDistancesFromSpots(double maxReciprocalDistance, double tooCl
                     continue;
                 
                 logged << "vec\t" << spots[i]->getX() << "\t" << spots[i]->getY() << "\t" << spots[j]->getX() << "\t" << spots[j]->getY() << "\t0\t0\t0\t" << distance << std::endl;
-                sendLog(LogLevelDetailed);
+                sendLog(LogLevelDebug);
                 
                 spotVectors.push_back(newVec);
             }
@@ -1351,27 +1444,12 @@ void Image::compileDistancesFromSpots(double maxReciprocalDistance, double tooCl
     }
     
     
-    int maxSpots = FileParser::getKey("REJECT_IF_SPOT_COUNT", 4000);
-    
-    if (maxSpots > 0)
-    {
-        if (spotCount() > maxSpots)
-        {
-            logged << "N: Aborting image " << getFilename() << " due to too many spots." << std::endl;
-            sendLog();
-            spotVectors.clear();
-            std::vector<SpotVectorPtr>().swap(spotVectors);
-            return;
-        }
-    }
-    
-    
     if (filter)
     {
         filterSpotVectors();
     }
     
-    bool scramble = FileParser::getKey("SCRAMBLE_SPOT_VECTORS", false);
+    bool scramble = FileParser::getKey("SCRAMBLE_SPOT_VECTORS", true);
     
     if (scramble)
     {
@@ -1492,7 +1570,7 @@ IndexingSolutionStatus Image::tryIndexingSolution(IndexingSolutionPtr solutionPt
     
     MatrixPtr solutionMatrix = solutionPtr->createSolution();
     bool similar = checkIndexingSolutionDuplicates(solutionMatrix);
-    
+  
     if (similar)
     {
         logged << "Indexing solution too similar to previous solution. Continuing..." << std::endl;
@@ -1504,6 +1582,7 @@ IndexingSolutionStatus Image::tryIndexingSolution(IndexingSolutionPtr solutionPt
     
     bool acceptAllSolutions = FileParser::getKey("ACCEPT_ALL_SOLUTIONS", false);
     bool refineOrientations = FileParser::getKey("REFINE_ORIENTATIONS", true);
+    int minimumSpotsExplained = FileParser::getKey("MINIMUM_SPOTS_EXPLAINED", 20);
     
     logged << solutionPtr->printNetwork();
     logged << solutionPtr->getNetworkPDB();
@@ -1535,14 +1614,35 @@ IndexingSolutionStatus Image::tryIndexingSolution(IndexingSolutionPtr solutionPt
     
     bool successfulImage = refiner->isGoodSolution();
     
+    MtzPtr mtz = refiner->newMtz(lastRefiner, true);
+    int spotsRemoved = mtz->removeStrongSpots(&spots, false);
+    
+    if (learningToIndex)
+        successfulImage = refiner->isBasicGoodSolution();
+    
+    if (spotsRemoved < minimumSpotsExplained)
+    {
+        logged << "(" << getFilename() << ") However, does not explain enough spots (" << spotsRemoved << " vs  " << minimumSpotsExplained << ")" << std::endl;
+        sendLog();
+        successfulImage = false;
+    }
+    else
+    {
+        logged << "(" << getFilename() << ") Enough spots are explained (" << spotsRemoved << " vs  " << minimumSpotsExplained << ")" << std::endl;
+        sendLog();
+
+    }
+    
     if (successfulImage || acceptAllSolutions)
     {
         logged << "Successful crystal for " << getFilename() << std::endl;
-        MtzPtr mtz = refiner->newMtz(lastRefiner);
+        goodSolutions.push_back(solutionPtr);
         int spotCountBefore = (int)spots.size();
+        refiner->showHistogram(false);
         
         mtz->removeStrongSpots(&spots);
         compileDistancesFromSpots();
+        IndexingSolution::calculateSimilarStandardVectorsForImageVectors(spotVectors);
         
         int spotCountAfter = (int)spots.size();
         
@@ -1554,7 +1654,12 @@ IndexingSolutionStatus Image::tryIndexingSolution(IndexingSolutionPtr solutionPt
     else
     {
         logged << "Unsuccessful crystal for " << getFilename() << std::endl;
+        badSolutions.push_back(solutionPtr);
         removeRefiner(lastRefiner);
+        
+        if (learningToIndex)
+            failedRefiners.push_back(refiner);
+        
         Logger::mainLogger->addStream(&logged); logged.str("");
         indexingFailureCount++;
         
@@ -1599,6 +1704,15 @@ IndexingSolutionStatus Image::extendIndexingSolution(IndexingSolutionPtr solutio
             sendLog(LogLevelDetailed);
             IndexingSolutionStatus success = extendIndexingSolution(copyPtr, newVectors, failures, added + newlyAdded);
             
+            if (success == IndexingSolutionBranchFailure)
+            {
+                if (!biggestFailedSolution || copyPtr->spotVectorCount() > biggestFailedSolution->spotVectorCount())
+                {
+                    biggestFailedSolution = copyPtr;
+                    biggestFailedSolutionVectors = newVectors;
+                }
+            }
+
             if (success != IndexingSolutionBranchFailure)
             {
                 return success;
@@ -1627,8 +1741,6 @@ IndexingSolutionStatus Image::extendIndexingSolution(IndexingSolutionPtr solutio
     if (added >= minimumSolutionNetworkCount)
     {
         IndexingSolutionStatus success = tryIndexingSolution(solutionPtr);
-        
-        this->spotVectors = newVectors;
         
         return success;
     }
@@ -1686,6 +1798,9 @@ std::vector<double> Image::anglesBetweenVectorDistances(double distance1, double
     {
         for (int k = 0; k < secondVectors.size(); k++)
         {
+            if (firstVectors[j] == secondVectors[k])
+                continue;
+            
             double angle = firstVectors[j]->angleWithVector(secondVectors[k]);
             logged << "Adding angle between " << firstVectors[j]->description() << " and " << secondVectors[k]->description() << " " << angle * 180 / M_PI << std::endl;
             sendLog();
@@ -1698,87 +1813,174 @@ std::vector<double> Image::anglesBetweenVectorDistances(double distance1, double
     return angles;
 }
 
+IndexingSolutionStatus Image::testSeedSolution(IndexingSolutionPtr newSolution, std::vector<SpotVectorPtr> &prunedVectors, int *successes)
+{
+    bool similar = checkIndexingSolutionDuplicates(newSolution->createSolution(), false);
+    
+    if (similar)
+    {
+        logged << "Solution too similar to another. Continuing..." << std::endl;
+        sendLog(LogLevelDetailed);
+        return IndexingSolutionTrialDuplicate;
+    }
+    
+    logged << "Starting a new solution..." << std::endl;
+    sendLog(LogLevelDetailed);
+    
+    IndexingSolutionStatus success = extendIndexingSolution(newSolution, prunedVectors);
+    
+    if (success == IndexingSolutionTrialSuccess)
+    {
+        logged << "Indexing solution trial success." << std::endl;
+        (*successes)++;
+    }
+    else if (success == IndexingSolutionTrialFailure)
+    {
+        logged << "Indexing solution trial failure." << std::endl;
+    }
+    else if (success == IndexingSolutionTrialDuplicate)
+    {
+        logged << "Indexing solution trial duplicate." << std::endl;
+    }
+    
+    return success;
+}
+
 void Image::findIndexingSolutions()
 {
     bool alwaysFilterSpots = FileParser::getKey("ALWAYS_FILTER_SPOTS", false);
     
-    compileDistancesFromSpots(0, 0, alwaysFilterSpots);
     std::vector<IndexingSolutionPtr> solutions;
-    
-    if (spotVectors.size() == 0)
-        return;
     
     int maxSearch = FileParser::getKey("MAX_SEARCH_NUMBER_MATCHES", 1000);
     
     if (IOMRefinerCount() > 0)
     {
-        logged << "Existing solution summary:" << std::endl;
+        logged << "Existing solution spot removal (image " << getFilename() << "):" << std::endl;
         
         for (int i = 0; i < IOMRefinerCount(); i++)
         {
-            logged << getIOMRefiner(i)->getMatrix()->summary() << std::endl;
+            MtzPtr mtz = getIOMRefiner(i)->newMtz(i);
+            int spotCountBefore = (int)spots.size();
+            mtz->removeStrongSpots(&spots);
+            int spotCountAfter = (int)spots.size();
+            int spotDiff = spotCountBefore - spotCountAfter;
+            
+            logged << "Removed " << spotDiff << " spots from existing solution leaving " << spotCountAfter << " spots." << std::endl;
         }
+
+        sendLog();
     }
+    
+    compileDistancesFromSpots(0, 0, alwaysFilterSpots);
+    if (spotVectors.size() == 0)
+        return;
     
     sendLog();
     
     bool continuing = true;
     int successes = 0;
     int maxSuccesses = FileParser::getKey("SOLUTION_ATTEMPTS", 1);
+    int maxLattices = FileParser::getKey("MAX_LATTICES_PER_IMAGE", 1);
     
-    std::vector<SpotVectorPtr> prunedVectors = spotVectors;
-    IndexingSolution::pruneSpotVectors(&prunedVectors);
-    spotVectors = prunedVectors;
+    if (maxLattices < maxSuccesses)
+        maxLattices = maxSuccesses;
     
-    logged << "Pruning " << filename << " spot vectors to " << prunedVectors.size() << std::endl;
-    sendLog();
+    if (IOMRefinerCount() >= maxLattices)
+        return;
     
-    if (prunedVectors.size() == 0)
+    int indexingTimeLimit = FileParser::getKey("INDEXING_TIME_LIMIT", 1200);
+    
+    IndexingSolution::calculateSimilarStandardVectorsForImageVectors(spotVectors);
+    
+    if (spotVectors.size() == 0)
     {
-        logged << "No vectors left - giving up." << std::endl;
+        logged << "No vectors - giving up." << std::endl;
         sendLog();
         return;
     }
     
-    for (int i = 0; i < prunedVectors.size() - 1 && i < 5000 && continuing && indexingFailureCount < 10; i++)
+    time_t startcputime;
+    time(&startcputime);
+    
+    bool lastWasSuccessful = true;
+    
+    while (lastWasSuccessful)
     {
-        SpotVectorPtr spotVector1 = prunedVectors[i];
-        
-        for (int j = i + 1; j < prunedVectors.size() && continuing && indexingFailureCount < 10; j++)
+        for (int i = 0; i < spotVectors.size() - 1 && i < maxSearch && continuing && indexingFailureCount < 10; i++)
         {
-            SpotVectorPtr spotVector2 = prunedVectors[j];
+            SpotVectorPtr spotVector1 = spotVectors[i];
             
-            std::vector<IndexingSolutionPtr> moreSolutions = IndexingSolution::startingSolutionsForVectors(spotVector1, spotVector2);
-            
-            if (moreSolutions.size() > 0)
+            for (int j = i + 1; j < spotVectors.size() && continuing && indexingFailureCount < 10; j++)
             {
-                logged << "Starting a new solution..." << std::endl;
-                sendLog(LogLevelDetailed);
+                SpotVectorPtr spotVector2 = spotVectors[j];
                 
-                IndexingSolutionStatus success = extendIndexingSolution(moreSolutions[0], prunedVectors);
+                std::vector<IndexingSolutionPtr> moreSolutions = IndexingSolution::startingSolutionsForVectors(spotVector1, spotVector2);
                 
-                if (success == IndexingSolutionTrialSuccess)
+                if (moreSolutions.size() > 0)
                 {
-                    logged << "Indexing solution trial success." << std::endl;
-                    successes++;
+                    IndexingSolutionStatus status = testSeedSolution(moreSolutions[0], spotVectors, &successes);
                     
-                    if (spots.size() < 50 || successes >= maxSuccesses)
+                    if (status == IndexingSolutionTrialSuccess || status == IndexingSolutionTrialDuplicate)
+                    {
+                        if (spotVectors.size() == 0)
+                        {
+                            continuing = false;
+                            break;
+                        }
+                        
+                        logged << "(" << getFilename() << ") now on " << spotVectors.size() << " vectors." << std::endl;
+                    }
+                    
+                    if (successes >= maxSuccesses || IOMRefinerCount() >= maxLattices)
                     {
                         continuing = false;
-                        break;
                     }
                 }
-                else if (success == IndexingSolutionTrialFailure)
-                {
-                    logged << "Indexing solution trial failure." << std::endl;
-                //    minimumSolutionNetworkCount += 2;
-                    
-                    prunedVectors = spotVectors;
-                }
+                
+                moreSolutions.clear();
+                std::vector<IndexingSolutionPtr>().swap(moreSolutions);
             }
             
-            moreSolutions.clear();
-            std::vector<IndexingSolutionPtr>().swap(moreSolutions);
+            time_t middlecputime;
+            time(&middlecputime);
+            
+            clock_t difference = middlecputime - startcputime;
+            double seconds = difference;
+            
+            if (seconds > indexingTimeLimit)
+            {
+                logged << "N: Time limit reached on image " << filename << " on " << IOMRefinerCount() << " crystals and " << spotCount() << " remaining spots." << std::endl;
+                sendLog();
+                
+                return;
+            }
+        }
+        
+        if (continuing && !learningToIndex)
+        {
+            if (!biggestFailedSolution)
+            {
+                lastWasSuccessful = false;
+                continue;
+            }
+            
+            IndexingSolutionStatus status = tryIndexingSolution(biggestFailedSolution);
+            
+            if (status != IndexingSolutionTrialSuccess)
+            {
+                lastWasSuccessful = false;
+            }
+            
+            if (status == IndexingSolutionTrialSuccess)
+            {
+                spotVectors = biggestFailedSolutionVectors;
+                biggestFailedSolution = IndexingSolutionPtr();
+            }
+        }
+        else
+        {
+            break;
         }
     }
     
@@ -1816,7 +2018,7 @@ void Image::writeSpotsList(std::string spotFile)
         std::string basename = getBasename();
         
         spotFile = "_" + basename + "_" + tag + "_spots.list";
-        spotDat = basename + "_spots.dat";
+        spotDat = basename + "_spots.csv";
     }
     
     std::ofstream spotList;
@@ -1830,4 +2032,13 @@ void Image::writeSpotsList(std::string spotFile)
     spotList.close();
     
     Spot::writeDatFromSpots(spotDat, spots);
+}
+
+void Image::reset()
+{
+    clearIOMRefiners();
+    failedRefiners.clear();
+    minimumSolutionNetworkCount = FileParser::getKey("MINIMUM_SOLUTION_NETWORK_COUNT", 20);
+    
+    processSpotList();
 }

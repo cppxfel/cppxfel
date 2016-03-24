@@ -19,10 +19,18 @@
 #include <cctbx/miller.h>
 #include <cctbx/uctbx.h>
 #include <scitbx/vec3.h>
+#include <cctbx/sgtbx/space_group.h>
+#include <cctbx/sgtbx/rt_mx.h>
+#include <cctbx/sgtbx/rot_mx.h>
 #include <cctbx/crystal_orientation.h>
 #include "Logger.h"
 //#include <boost/python.hpp>
 #include "FileParser.h"
+
+using cctbx::sgtbx::rt_mx;
+using cctbx::sgtbx::rot_mx;
+
+MatrixPtr Matrix::identityMatrix = MatrixPtr(new Matrix());
 
 double *Matrix::array()
 {
@@ -57,13 +65,18 @@ void Matrix::maxMillers(int (&millers)[3], double maxResolution)
     }
 }
 
-Matrix::Matrix(void)
+void Matrix::setIdentity()
 {
     for (int i = 0; i < 16; i++)
         components[i] = 0;
     
     for (int i = 0; i < 16; i += 5)
         components[i] = 1;
+}
+
+Matrix::Matrix(void)
+{
+    setIdentity();
     
     unitCell = MatrixPtr();
     rotation = MatrixPtr();
@@ -123,6 +136,19 @@ std::string Matrix::description(bool detailed, bool submatrix)
     return description.str();
 }
 
+void Matrix::sensibleComponents(double *returnedComponents[9])
+{
+    (*returnedComponents)[0] = components[0];
+    (*returnedComponents)[1] = components[4];
+    (*returnedComponents)[2] = components[8];
+    (*returnedComponents)[3] = components[1];
+    (*returnedComponents)[4] = components[5];
+    (*returnedComponents)[5] = components[9];
+    (*returnedComponents)[6] = components[2];
+    (*returnedComponents)[7] = components[6];
+    (*returnedComponents)[8] = components[10];
+}
+
 void Matrix::eulerAngles(double *theta, double *phi, double *psi, bool force)
 {
     Matrix *chosenMat = rotation ? &*rotation : this;
@@ -174,47 +200,63 @@ double Matrix::similarityToRotationMatrix(MatrixPtr mat2, double tolerance, bool
     return sqrt(sumSqr);
 }
 
-void Matrix::symmetryOperatorsForSpaceGroup(std::vector<MatrixPtr> *matrices, CSym::CCP4SPG *spaceGroup)
+MatrixPtr Matrix::getNegativeCopy()
 {
-    int symmetryOperatorCount = spaceGroup->nsymop;
+    MatrixPtr newMat = this->copy();
     
-    for (int i = 0; i < symmetryOperatorCount; i++)
+    for (int i = 0; i < 16; i++)
     {
-        for (int j = 0; j < 2; j++)
+        newMat->components[i] = - newMat->components[i];
+    }
+    
+    return newMat;
+}
+
+void Matrix::symmetryOperatorsForSpaceGroup(std::vector<MatrixPtr> *matrices, CSym::CCP4SPG *spaceGroup, double a, double b, double c, double alpha, double beta, double gamma)
+{
+    cctbx::sgtbx::space_group_symbols spaceGroupSymbol = cctbx::sgtbx::space_group_symbols(spaceGroup->spg_num);
+    std::string hallSymbol = spaceGroupSymbol.hall();
+    
+    cctbx::sgtbx::space_group spaceGroupCctbx = cctbx::sgtbx::space_group(hallSymbol);
+    
+    scitbx::af::shared<rt_mx> allOps = spaceGroupCctbx.all_ops();
+    scitbx::af::double6 params = scitbx::af::double6(a, b, c, alpha, beta, gamma);
+    cctbx::uctbx::unit_cell uc = cctbx::uctbx::unit_cell(params);
+    
+    std::ostringstream logged;
+    
+    for (int j = 0; j < allOps.size(); j++)
+    {
+        rot_mx rotation = allOps[j].r();
+        cctbx::uc_mat3 orthogonal_rotation = uc.matrix_cart(rotation);
+        
+        for (int i = 0; i < 9; i++)
         {
-            CSym::ccp4_symop symop;
-            
-            if (j == 0) symop = spaceGroup->symop[i];
-            if (j == 1) symop = spaceGroup->invsymop[i];
             MatrixPtr newMat = MatrixPtr(new Matrix());
             
-            newMat->components[0] = symop.rot[0][0];
-            newMat->components[4] = symop.rot[0][1];
-            newMat->components[8] = symop.rot[0][2];
-            newMat->components[1] = symop.rot[1][0];
-            newMat->components[5] = symop.rot[1][1];
-            newMat->components[9] = symop.rot[1][2];
-            newMat->components[2] = symop.rot[2][0];
-            newMat->components[6] = symop.rot[2][1];
-            newMat->components[10] = symop.rot[2][2];
+            newMat->components[0] = orthogonal_rotation[0];
+            newMat->components[4] = orthogonal_rotation[1];
+            newMat->components[8] = orthogonal_rotation[2];
             
-            matrices->push_back(newMat);
+            newMat->components[1] = orthogonal_rotation[3];
+            newMat->components[5] = orthogonal_rotation[4];
+            newMat->components[9] = orthogonal_rotation[5];
+            
+            newMat->components[2] = orthogonal_rotation[6];
+            newMat->components[6] = orthogonal_rotation[7];
+            newMat->components[10] = orthogonal_rotation[8];
+
+            MatrixPtr transposeMat = newMat->copy();
+            matrices->push_back(transposeMat->transpose());
+            MatrixPtr transNegMat = transposeMat->getNegativeCopy();
+            matrices->push_back(transNegMat);
         }
     }
 }
 
 void Matrix::printDescription(bool detailed)
 {
-    std::cout << description(detailed) << std::endl;
-    /*
-     for (int i = 0; i < 9; i += 3)
-     {
-     for (int j = i; j < i + 3; j++)
-     {
-     std::cout << components[j] << "\t";
-     }
-     std::cout << std::endl;
-     }*/
+    Logger::mainLogger->addString(description(detailed));
 }
 
 MatrixPtr Matrix::matrixFromUnitCellVersion2(double a, double b, double c, double alpha, double beta, double gamma)
@@ -272,6 +314,25 @@ MatrixPtr Matrix::matrixFromUnitCellVersion2(double a, double b, double c, doubl
     return reciprocalMatrix;
 }
 
+std::vector<double> Matrix::unitCellFromReciprocalUnitCell(double a, double b, double c, double alpha, double beta, double gamma)
+{
+    scitbx::af::double6 params = scitbx::af::double6(a, b, c, alpha, beta, gamma);
+    cctbx::uctbx::unit_cell uc = cctbx::uctbx::unit_cell(params);
+    
+    cctbx::uctbx::unit_cell rc = uc.reciprocal();
+    
+    scitbx::af::double6 newParams = rc.parameters();
+    
+    std::vector<double> unitCell;
+
+    for (int i = 0; i < newParams.size(); i++)
+    {
+        unitCell.push_back(newParams[i]);
+    }
+    
+    return unitCell;
+}
+
 MatrixPtr Matrix::matrixFromUnitCell(double a, double b, double c, double alpha, double beta, double gamma)
 {
     //  return matrixFromUnitCellVersion2(a, b, c, alpha, beta, gamma);
@@ -294,8 +355,8 @@ MatrixPtr Matrix::matrixFromUnitCell(double a, double b, double c, double alpha,
 // might be totally crap
 void Matrix::orientationMatrixUnitCell(double *a, double *b, double *c)
 {
-    Matrix orientationTranspose = this->transpose();
-    Matrix transposeTimesMatrix = orientationTranspose * *this;
+    MatrixPtr orientationTranspose = this->transpose();
+    Matrix transposeTimesMatrix = *orientationTranspose * *this;
     MatrixPtr inverted = transposeTimesMatrix.inverse3DMatrix();
     
     double aSquared = (*inverted)[0];
@@ -902,25 +963,35 @@ double Matrix::determinant()
     
 }
 
-Matrix Matrix::transpose()
+double Matrix::trace()
 {
-    Matrix transpose = Matrix();
+    double trace = 0;
+    trace += components[0];
+    trace += components[5];
+    trace += components[10];
     
-    transpose[0] = components[0];
-    transpose[1] = components[4];
-    transpose[2] = components[8];
-    transpose[3] = components[12];
-    transpose[4] = components[1];
-    transpose[5] = components[5];
-    transpose[6] = components[9];
-    transpose[8] = components[2];
-    transpose[9] = components[6];
-    transpose[10] = components[10];
-    transpose[11] = components[14];
-    transpose[12] = components[3];
-    transpose[13] = components[7];
-    transpose[14] = components[11];
-    transpose[15] = components[15];
+    return trace;
+}
+
+MatrixPtr Matrix::transpose()
+{
+    MatrixPtr transpose = MatrixPtr(new Matrix());
+    
+    (*transpose)[0] = components[0];
+    (*transpose)[1] = components[4];
+    (*transpose)[2] = components[8];
+    (*transpose)[3] = components[12];
+    (*transpose)[4] = components[1];
+    (*transpose)[5] = components[5];
+    (*transpose)[6] = components[9];
+    (*transpose)[8] = components[2];
+    (*transpose)[9] = components[6];
+    (*transpose)[10] = components[10];
+    (*transpose)[11] = components[14];
+    (*transpose)[12] = components[3];
+    (*transpose)[13] = components[7];
+    (*transpose)[14] = components[11];
+    (*transpose)[15] = components[15];
     
     return transpose;
 }

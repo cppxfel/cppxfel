@@ -12,15 +12,14 @@
 #include <string>
 
 #include <map>
-#include "MtzManager.h"
-#include "Image.h"
 #include "definitions.h"
 #include "parameters.h"
 #include <cctbx/miller/asu.h>
-#include "Holder.h"
 
 using cctbx::sgtbx::reciprocal_space::asu;
 
+class MtzManager;
+class Reflection;
 class Image;
 
 typedef enum
@@ -33,64 +32,55 @@ typedef enum
     RlpModelUniform, RlpModelGaussian,
 } RlpModel;
 
-class Miller
+class Miller : public LoggableObject, public boost::enable_shared_from_this<Miller>
 {
 private:
     static asu p1_asu;
     static cctbx::sgtbx::space_group p1_spg;
     static bool initialised_p1;
+    static bool normalised;
+    static bool correctingPolarisation;
+    static double polarisationFactor;
+    static int maxSlices;
+    static short int slices;
+    static float trickyRes;
+    static bool setupStatic;
+    static int peakSize;
     
-    double h;
-    double k;
-    double l;
-    double phase;
-    short int fakeFriedel;
-	bool normalised;
-    RlpModel rlpModel;
-    bool correctingPolarisation;
-	double polarisationCorrection;
-    double polarisationFactor;
-	double getPolarisationCorrection();
-	std::map<std::string, bool> rejectedReasons;
+    short int h;
+    short int k;
+    short int l;
+    bool free;
+    float phase;
+    char fakeFriedel;
+	RlpModel rlpModel;
+    double polarisationCorrection;
+    double getPolarisationCorrection();
+	std::map<RejectReason, bool> rejectedReasons;
 	double partialCutoff;
-	double bFactor;
-	double scale;
-    double gainScale;
-	double lastX;
-	double lastY;
-    double lastBandwidth;
-    double lastWavelength;
-    double lastRlpSize;
-    double lastMosaicity;
-    double lastNormPartiality;
-    int slices;
-    double trickyRes;
-    double maxSlices;
-    
-    double lastRadius;
-    double lastVolume;
-    double lastSurfaceArea;
-    bool sizeChanged;
+	float bFactor;
+	float scale;
+	float lastX;
+	float lastY;
     
     double latestHRot;
     double latestKRot;
-    double bFactorScale;
+    float bFactorScale;
     bool excluded;
     bool rejected;
     bool calculatedRejected;
-    double additionalWeight;
-    double denormaliseFactor;
     
 	std::pair<double, double> shift;
-    double resol;
+    float resol;
  
     double superGaussian(double bandwidth, double mean,
                         double sigma, double exponent);
     double integrate_beam_slice(double pBandwidth, double qBandwidth, double mean,
                                double sigma, double exponent);
+    double integrate_special_beam_slice(double pBandwidth, double qBandwidth);
     double sliced_integral(double low_wavelength, double high_wavelength,
                           double spot_size_radius, double maxP, double maxQ, double mean, double sigma,
-                          double exponent);
+                          double exponent, bool binary = false, bool withBeamObject = false);
     
     double integrate_sphere_uniform(double p, double q);
     double integrate_sphere_gaussian(double p, double q);
@@ -98,28 +88,35 @@ private:
     
     double expectedRadius(double spotSize, double mosaicity, vec *hkl);
     
+    BeamPtr beam;
     ImageWeakPtr image;
     IOMRefiner *indexer;
     ShoeboxPtr shoebox;
-    boost::weak_ptr<Miller> selfPtr;
-    MatrixPtr flipMatrix;
+    unsigned char flipMatrix;
 public:
     int getH();
     int getK();
     int getL();
     
+    static void setupStaticVariables();
     vec hklVector(bool shouldFlip = true);
-    void setFlipMatrix(MatrixPtr flipMat);
+    void setFlipMatrix(int i);
+    
+    MatrixPtr getFlipMatrix();
+    
 	MatrixPtr matrix;
 	Reflection *parentReflection;
     MtzManager *mtzParent;
+    bool crossesBeamRoughly(MatrixPtr rotatedMatrix, double mosaicity,
+                            double spotSize, double wavelength, double bandwidth);
 
 	Miller(MtzManager *parent, int _h = 0, int _k = 0, int _l = 0);
 	MillerPtr copy(void);
 	void printHkl(void);
 	static double scaleForScaleAndBFactor(double scaleFactor, double bFactor, double resol, double exponent_exponent = 1);
-
-    bool isOverlappedWithSpots(std::vector<SpotPtr> *spots);
+    void limitingEwaldWavelengths(vec hkl, double mosaicity, double spotSize, double wavelength, double *limitLow, double *limitHigh);
+    
+    bool isOverlappedWithSpots(std::vector<SpotPtr> *spots, bool actuallyDelete = true);
     double calculateDefaultNorm();
     void setPartialityModel(PartialityModel model);
 	void setData(double _intensity, double _sigma, double _partiality,
@@ -127,15 +124,19 @@ public:
 	void setParent(Reflection *reflection);
 	void setFree(bool newFree);
 	bool positiveFriedel(bool *positive, int *isym = NULL);
-	void setRejected(std::string reason, bool rejection);
-	bool isRejected(std::string reason);
+	void setRejected(RejectReason reason, bool rejection);
+	bool isRejected(RejectReason reason);
 	void makeScalesPermanent();
     void integrateIntensity(MatrixPtr transformedMatrix);
     vec getTransformedHKL(double hRot, double kRot);
     double getEwaldWeight(double hRot, double kRot, bool isH);
     
 	bool accepted(void);
-	bool free(void);
+	bool isFree()
+    {
+        return free;
+    }
+    
 	void flip(void);
 
     bool isRejected();
@@ -150,21 +151,20 @@ public:
 	double resolution();
     double twoTheta(bool horizontal);
 	double scatteringAngle(ImagePtr image);
-    void denormalise();
 
     void incrementOverlapMask(double hRot = 0, double kRot = 0);
     bool isOverlapped();
 	void positionOnDetector(MatrixPtr transformedMatrix, int *x,
 			int *y);
-    void calculatePosition(double distance, double wavelength, double beamX, double beamY, double mmPerPixel, MatrixPtr transformedMatrix, double *x, double *y);
-
+    void recalculateBetterPartiality();
+    
     void setHorizontalPolarisationFactor(double newFactor);
 	void recalculatePartiality(MatrixPtr rotatedMatrix, double mosaicity,
-			double spotSize, double wavelength, double bandwidth, double exponent);
+			double spotSize, double wavelength, double bandwidth, double exponent, bool binary = false);
 	double partialityForHKL(vec hkl, double mosaicity,
-			double spotSize, double wavelength, double bandwidth, double exponent);
+			double spotSize, double wavelength, double bandwidth, double exponent, bool binary = false);
 	void applyScaleFactor(double scaleFactor);
-	double calculateNormPartiality(double mosaicity,
+	double calculateNormPartiality(MatrixPtr rotatedMatrix, double mosaicity,
 			double spotSize, double wavelength, double bandwidth, double exponent);
 	double calculateNormFromResolution(MatrixPtr rotatedMatrix, double mosaicity,
 			double spotSize, double wavelength, double bandwidth, double exponent,
@@ -179,6 +179,11 @@ public:
 
 	virtual ~Miller();
     
+    void setBeam(BeamPtr newBeam)
+    {
+        beam = newBeam;
+    }
+    
     void setExcluded(bool exc = true)
     {
         excluded = exc;
@@ -187,16 +192,6 @@ public:
     bool isExcluded()
     {
         return excluded;
-    }
-    
-    void setAdditionalWeight(double weight)
-    {
-        additionalWeight = weight;
-    }
-    
-    double getAdditionalWeight()
-    {
-        return additionalWeight;
     }
     
     MtzManager *&getMtzParent()
@@ -221,7 +216,7 @@ public:
 
 	double getRawIntensity() const
 	{
-		return rawIntensity * scale * gainScale;
+		return rawIntensity * scale;
 	}
 
 	void setRawIntensity(double rawIntensity)
@@ -234,12 +229,6 @@ public:
 		this->sigma = sigma;
 	}
     
-    void setGainScale(double newScale)
-    {
-        if (newScale == newScale)
-            gainScale = newScale;
-    }
-
 	const std::string& getFilename() const
 	{
 		return filename;
@@ -254,7 +243,7 @@ public:
 
 	double getCountingSigma() const
 	{
-		return countingSigma * gainScale * scale;
+		return countingSigma * scale;
 	}
 
 	void setCountingSigma(double countingSigma)
@@ -287,29 +276,9 @@ public:
 		this->polarisationCorrection = polarisationCorrection;
 	}
 
-	double getLastWavelength() const
-	{
-		return lastWavelength;
-	}
-
-	double getLastBandwidth()
-    {
-        return lastBandwidth;
-    }
-    
-    double getLastMosaicity()
-    {
-        return lastMosaicity;
-    }
-    
-    double getLastRlpSize()
-    {
-        return lastRlpSize;
-    }
-
 	void setRejected(bool rejected)
 	{
-        setRejected("merge", rejected);        
+        setRejected(RejectReasonMerge, rejected);
 	}
 
 	double getLastX() const
@@ -407,11 +376,6 @@ public:
         return image.lock();
     }
     
-    void setSelf(MillerPtr ptr)
-    {
-        selfPtr = ptr;
-    }
-    
     void setCorrectingPolarisation(bool on)
     {
         correctingPolarisation = on;
@@ -426,12 +390,28 @@ public:
     {
         return phase;
     }
+    /*
+    int Miller::noFlipH()
+    {
+        return h;
+    }
+
+    int Miller::noFlipK()
+    {
+        return k;
+    }
+
+    int Miller::noFlipL()
+    {
+        return l;
+    }*/
+
 
     static void rotateMatrixABC(double aRot, double bRot, double cRot, MatrixPtr oldMatrix, MatrixPtr *newMatrix);
     static void rotateMatrixHKL(double hRot, double kRot, double lRot, MatrixPtr oldMatrix, MatrixPtr *newMatrix);
 
 protected:
-	PartialityModel model;
+	static PartialityModel model;
 	double rawIntensity;
 	double sigma;
 	double countingSigma;

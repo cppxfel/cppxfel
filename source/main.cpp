@@ -11,6 +11,7 @@
 #include "Wiki.h"
 #include "Logger.h"
 #include <fstream>
+#include <unistd.h>
 
 void finishJobNotification(int argc, char *argv[], int minutes)
 {
@@ -28,8 +29,16 @@ void finishJobNotification(int argc, char *argv[], int minutes)
         command << argv[i] << " ";
     }
     
+    std::string workingDirectory;
+    
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL)
+    {
+        workingDirectory = cwd;
+    }
+    
     std::ostringstream notification;
-    notification << "osascript -e 'display notification \"" << command.str() << "\" with title \"Job finished\" subtitle \"" << minutes << " minutes to complete\" sound name \"Glass\"'" << std::endl;
+    notification << "osascript -e 'display notification \"" << workingDirectory << "\" with title \"" << command.str() << "\" subtitle \"" << minutes << " minutes to complete\" sound name \"Glass\"'" << std::endl;
     
     std::ofstream jobNotificationFile;
     jobNotificationFile.open(jobNotificationFileStr, std::ofstream::out | std::ofstream::app);
@@ -53,7 +62,7 @@ void new_main(int argc, char *argv[])
     
 	if (argc == 1)
 	{
-        std::cout << "Welcome to cppxfel version 1.1!" << std::endl;
+        std::cout << "Welcome to cppxfel version 1.1.1!" << std::endl;
         std::cout << "Please refer to & cite paper in Journal of Applied Crystallography (unpublished)" << std::endl << std::endl;
         std::cout << "Command order for regular structure solution:" << std::endl;
         std::cout << "\tcppxfel.run_dials shot*.pickle" << std::endl;
@@ -101,8 +110,10 @@ void new_main(int argc, char *argv[])
     
 	std::cout << "Welcome to cppxfel!" << std::endl;
     
-	if (strcmp(argv[1], "-i") == 0)
+	if (strcmp(argv[1], "-i") == 0 || strcmp(argv[1], "-dry") == 0)
 	{
+        bool dry = (strcmp(argv[1], "-dry") == 0);
+        
 		if (argc < 3)
 		{
 			std::cout << "arguments: -i <input_script>" << std::endl;
@@ -117,6 +128,7 @@ void new_main(int argc, char *argv[])
         }
         
         InputFileParser *parser = new InputFileParser(std::string(argv[2]), extras);
+        parser->setDry(dry);
 		parser->parse(false);
         
         delete parser;
@@ -231,7 +243,7 @@ void new_main(int argc, char *argv[])
 		}
 		else
 		{
-			mtz1->correlationWithManager(mtz2, 1, 0, lowRes, highRes, bins);
+			mtz1->correlationWithManager(mtz2, 1, 0, lowRes, highRes, bins, NULL, true);
 
 		}
 
@@ -300,20 +312,23 @@ void new_main(int argc, char *argv[])
             double threshold = -100;
             int h = 0; int k = 0; int l = 0;
             
-            if (argc >= 4)
+            if (argc >= 3)
             {
                 threshold = atof(argv[3]);
+                std::cout << "Threshold set to " << threshold << std::endl;
             }
             
-            if (argc >= 7)
+            if (argc >= 6)
             {
                 h = atoi(argv[4]);
                 k = atoi(argv[5]);
                 l = atoi(argv[6]);
+
+                std::cout << "Searching for " << h << " " << k << " " << l << std::endl;
             }
 
             GraphDrawer drawer = GraphDrawer(&*stats.mtzs[0]);
-            drawer.plotPartialityStats();
+            drawer.plotPartialityStats(h, k, l);
 		}
 	}
     
@@ -412,7 +427,20 @@ void new_main(int argc, char *argv[])
         mtz->applyScaleFactorsForBins(50);
         mtz->writeToFile("scaled-" + std::string(argv[3]));
     }
-
+    
+    if (strcmp(argv[1], "-bfac") == 0)
+    {
+        MtzManager *reference = new MtzManager();
+        reference->setFilename(argv[2]);
+        reference->loadReflections(1);
+        
+        double bFactor = atof(argv[3]);
+        
+        reference->applyBFactor(bFactor);
+        reference->writeToFile("bfac-" + reference->getFilename(), true);
+        
+    }
+    
 	if (strcmp(argv[1], "-bfactor") == 0)
 	{
 		if (argc <= 2)

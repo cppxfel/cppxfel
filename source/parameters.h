@@ -112,6 +112,7 @@ class Miller;
 #include <boost/shared_ptr.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <string>
+#include <mutex>
 
 using std::vector;
 
@@ -151,6 +152,13 @@ typedef enum
     PanelTagBad = 1,
 } PanelTag;
 
+typedef enum
+{
+    RejectReasonMerge,
+    RejectReasonPartiality,
+    RejectReasonCorrelation,
+} RejectReason;
+
 class Panel;
 class Logger;
 class Image;
@@ -164,7 +172,16 @@ class ImageCluster;
 class CommonCircle;
 class SpotVector;
 class IndexingSolution;
+class UnitCellLattice;
+class Beam;
+class GaussianBeam;
+class SpectrumBeam;
+class GetterSetterMap;
 
+typedef boost::shared_ptr<SpectrumBeam> SpectrumBeamPtr;
+typedef boost::shared_ptr<GetterSetterMap> GetterSetterMapPtr;
+typedef boost::shared_ptr<Beam> BeamPtr;
+typedef boost::shared_ptr<GaussianBeam> GaussianBeamPtr;
 typedef boost::shared_ptr<Miller> MillerPtr;
 typedef boost::shared_ptr<Shoebox>ShoeboxPtr;
 typedef boost::shared_ptr<Spot> SpotPtr;
@@ -181,6 +198,8 @@ typedef boost::shared_ptr<Matrix>MatrixPtr;
 typedef boost::shared_ptr<IOMRefiner>IOMRefinerPtr;
 typedef boost::shared_ptr<SpotVector> SpotVectorPtr;
 typedef boost::shared_ptr<IndexingSolution> IndexingSolutionPtr;
+typedef boost::shared_ptr<std::mutex> MutexPtr;
+typedef boost::shared_ptr<UnitCellLattice> UnitCellLatticePtr;
 
 typedef boost::variant<double, double, std::string, bool, int,
 		vector<double>, vector<int> > ParameterVariant;
@@ -191,11 +210,16 @@ typedef std::pair<CommonLinePtr, CommonLinePtr> CommonLinePair;
 typedef std::pair<CommonCirclePtr, CommonCirclePtr> CommonCirclePair;
 
 typedef double (StatisticsFunction)(MtzManager *, MtzManager *, int, int *,
-		double *, double, double, bool);
+		double *, double, double, bool, bool);
 typedef double (RFactorFunction)(RFactorType, MtzManager *, int *, double *,
-		double, double);
+		double, double, bool);
 typedef std::pair<vec, double> VectorDistance;
 typedef std::pair<std::pair<SpotVectorPtr, VectorDistance>, double> Match;
+
+typedef double (*Getter)(void *);
+typedef void (*Setter)(void *, double newValue);
+
+//typedef std::vector<std::pair<void *, std::pair<Getter, Setter> > > GetterSetterMap;
 
 
 typedef enum
@@ -209,7 +233,7 @@ typedef enum
 
 typedef enum
 {
-	PartialityModelNone, PartialityModelSimple, PartialityModelScaled, PartialityModelFixed
+	PartialityModelNone, PartialityModelSimple, PartialityModelScaled, PartialityModelFixed, PartialityModelBinary
 } PartialityModel;
 
 #endif /* PARAMETERS_H_ */

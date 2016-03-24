@@ -14,6 +14,8 @@
 #include <iostream>
 #include <boost/variant.hpp>
 #include "StatisticsManager.h"
+#include "Holder.h"
+#include "Miller.h"
 
 #include <cstdlib>
 #include <cmath>
@@ -21,14 +23,20 @@
 
 #include "definitions.h"
 #include "FileParser.h"
-
+#include "CSV.h"
 
 using namespace CMtz;
 
 using namespace CSym;
+CCP4SPG *MtzManager::low_group = NULL;
+std::mutex MtzManager::spaceGroupMutex;
+
+vector<double> MtzManager::superGaussianTable;
+bool MtzManager::setupSuperGaussian = false;
+std::mutex MtzManager::tableMutex;
+double MtzManager::superGaussianScale = 0;
 
 MtzManager *MtzManager::referenceManager;
-//ScoreType MtzManager::scoreType = ScoreTypeCorrelation;
 double MtzManager::highRes = 3.5;
 double MtzManager::lowRes = 0;
 
@@ -69,11 +77,16 @@ std::string MtzManager::describeScoreType()
 
 void MtzManager::makeSuperGaussianLookupTable(double exponent)
 {
-    if (optimisingExponent)
+    if (setupSuperGaussian)
         return;
     
-    if (exponent == lastExponent)
+    tableMutex.lock();
+    
+    if (setupSuperGaussian)
+    {
+        tableMutex.unlock();
         return;
+    }
     
     superGaussianScale = pow((M_PI / 2), (2 / exponent - 1));
     
@@ -95,7 +108,8 @@ void MtzManager::makeSuperGaussianLookupTable(double exponent)
         count++;
     }
     
-    lastExponent = exponent;
+    setupSuperGaussian = true;
+    tableMutex.unlock();
 }
 
 std::string MtzManager::filenameRoot()
@@ -294,7 +308,6 @@ MtzManager::MtzManager(void)
     failedCount = 0;
     filename = "";
     reflections.resize(0);
-    low_group = NULL;
     bandwidth = INITIAL_BANDWIDTH;
     hRot = 0;
     kRot = 0;
@@ -319,7 +332,6 @@ MtzManager::MtzManager(void)
     rejected = false;
     scale = 1;
     externalScale = -1;
-    lastExponent = 0;
     previousReference = NULL;
     previousAmbiguity = -1;
     activeAmbiguity = 0;
@@ -361,8 +373,8 @@ MtzPtr MtzManager::copy()
 {
     MtzPtr newManager = MtzPtr(new MtzManager());
     newManager->filename = filename;
-    double lowNum = low_group->spg_num;
-    newManager->setSpaceGroup(lowNum);
+//    double lowNum = low_group->spg_num;
+//    newManager->setSpaceGroup(lowNum);
     newManager->bandwidth = bandwidth;
     newManager->hRot = hRot;
     newManager->kRot = kRot;
@@ -480,11 +492,13 @@ int MtzManager::refinedParameterCount()
 void MtzManager::setMatrix(double *components)
 {
     matrix = MatrixPtr(new Matrix(components));
+    rotatedMatrix = matrix->copy();
 }
 
 void MtzManager::setMatrix(MatrixPtr newMat)
 {
     matrix = newMat;
+    rotatedMatrix = matrix->copy();
 }
 
 void MtzManager::setDefaultMatrix()
@@ -498,6 +512,11 @@ void MtzManager::setDefaultMatrix()
     
     MatrixPtr mat = Matrix::matrixFromUnitCell(a, b, c, alpha, beta, gamma);
     matrix = mat->copy();
+}
+
+MatrixPtr MtzManager::getLatestMatrix()
+{
+    return rotatedMatrix;
 }
 
 void MtzManager::getUnitCell(double *a, double *b, double *c, double *alpha,
@@ -517,7 +536,7 @@ void MtzManager::copySymmetryInformationFromManager(MtzPtr toCopy)
     toCopy->getUnitCell(&a, &b, &c, &alpha, &beta, &gamma);
     this->setUnitCell(a, b, c, alpha, beta, gamma);
     
-    std::cout << "Setting unit cell to " << a << ", " << b << ", " << c << ", " << alpha << ", " << beta << ", " << gamma <<std::endl;
+  //  std::cout << "Setting unit cell to " << a << ", " << b << ", " << c << ", " << alpha << ", " << beta << ", " << gamma <<std::endl;
     
     int spgnum = toCopy->getLowGroup()->spg_ccp4_num;
     CCP4SPG *spg = ccp4spg_load_by_ccp4_num(spgnum);
@@ -548,7 +567,7 @@ void MtzManager::loadReflections(PartialityModel model, bool special)
     
     int spgnum = FileParser::getKey("SPACE_GROUP", fromMtzNum);
     
-    low_group = ccp4spg_load_by_ccp4_num(spgnum);
+    setSpaceGroup(spgnum);
     
     if (low_group == NULL)
     {
@@ -704,9 +723,11 @@ void MtzManager::loadReflections(PartialityModel model, bool special)
         miller->setData(intensity, sigma, partiality, wavelength);
         miller->setCountingSigma(sigma);
         miller->setFilename(filename);
-        miller->setPartialityModel(model);
+    //    miller->setPartialityModel(model);
         miller->setPhase(phase);
-        miller->setShift(std::make_pair(shiftX, shiftY));
+        miller->setLastX(shiftX);
+        miller->setLastY(shiftY);
+//        miller->setShift(std::make_pair(shiftX, shiftY));
         miller->matrix = this->matrix;
         
         Reflection *prevReflection;
@@ -730,7 +751,7 @@ void MtzManager::loadReflections(PartialityModel model, bool special)
             Reflection *newReflection = new Reflection();
             reflections.push_back(newReflection);
             newReflection->setUnitCell(cell);
-            newReflection->setSpaceGroup(low_group, spgType, asymmetricUnit);
+            newReflection->setSpaceGroup(low_group->spg_num);
             
             reflections[num]->addMiller(miller);
             miller->setParent(reflections[num]);
@@ -811,7 +832,23 @@ std::string MtzManager::getFilename(void)
 
 void MtzManager::setSpaceGroup(int spgnum)
 {
+    if (low_group != NULL)
+        return;
+    
+    spaceGroupMutex.lock();
+
+    if (low_group != NULL)
+    {
+        spaceGroupMutex.unlock();
+        return;
+    }
+    
     low_group = ccp4spg_load_by_ccp4_num(spgnum);
+    
+    logged << "Loaded space group " << spgnum << " for all MTZs" << std::endl;
+    sendLog();
+    
+    spaceGroupMutex.unlock();
 }
 
 int MtzManager::findReflectionWithId(long unsigned int refl_id, Reflection **reflection, bool insertionPoint)
@@ -1207,6 +1244,9 @@ double MtzManager::gradientAgainstManager(MtzManager *otherManager,
     
     for (int i = 0; i < num; i++)
     {
+        if (reflections1[i]->miller(0)->isFree())
+            continue;
+        
         if (reflections1[i]->acceptedCount() == 0 && withCutoff)
             continue;
         
@@ -1336,7 +1376,7 @@ void MtzManager::applyPolarisation(void)
     }
 }
 
-void MtzManager::writeToFile(std::string newFilename, bool announce, bool shifts, bool includeAmbiguity)
+void MtzManager::writeToFile(std::string newFilename, bool announce, bool shifts, bool includeAmbiguity, bool useCountingSigma)
 {
     int columns = 7;
     if (includeAmbiguity)
@@ -1357,7 +1397,6 @@ void MtzManager::writeToFile(std::string newFilename, bool announce, bool shifts
     MTZXTAL *xtal;
     MTZSET *set;
     MTZCOL *colout[9];
-    
     
     /*  Removed: General CCP4 initializations e.g. HKLOUT on command line */
     
@@ -1414,6 +1453,7 @@ void MtzManager::writeToFile(std::string newFilename, bool announce, bool shifts
             double sigma = reflections[i]->miller(j)->getSigma();
             double partiality = reflections[i]->miller(j)->getPartiality();
             double bFactor = reflections[i]->miller(j)->getBFactorScale();
+            double countingSigma = reflections[i]->miller(j)->getCountingSigma();
             
             if (intensity != intensity)
             {
@@ -1433,14 +1473,14 @@ void MtzManager::writeToFile(std::string newFilename, bool announce, bool shifts
             fdata[1] = k;
             fdata[2] = l;
             fdata[3] = intensity / bFactor;
-            fdata[4] = sigma;
+            fdata[4] = useCountingSigma ? countingSigma : sigma;
             fdata[5] = partiality;
             fdata[6] = reflections[i]->miller(j)->getWavelength();
             
             if (shifts)
             {
-                fdata[7] = reflections[i]->miller(j)->getShift().first;
-                fdata[8] = reflections[i]->miller(j)->getShift().second;
+                fdata[7] = reflections[i]->miller(j)->getShift().first + reflections[i]->miller(j)->getLastX();
+                fdata[8] = reflections[i]->miller(j)->getShift().second + reflections[i]->miller(j)->getLastY();
             }
             
             ccp4_lwrefl(mtzout, fdata, colout, columns, num);
@@ -1474,10 +1514,6 @@ MtzManager::~MtzManager(void)
     
     reflections.clear();
     vector<Reflection *>().swap(reflections);
-    
-    if (low_group != NULL)
-        ccp4spg_free(&low_group);
-    
 }
 
 void MtzManager::description(void)
@@ -1533,17 +1569,19 @@ int MtzManager::accepted(void)
 }
 
 
-void MtzManager::writeToDat()
+void MtzManager::writeToDat(std::string prefix)
 {
     std::string name = filename;
     int lastindex = (int)name.find_last_of(".");
     std::string rootName = name.substr(0, lastindex);
-    std::string datName = rootName + ".dat";
-    
+    std::string datName = prefix + rootName + ".csv";
+    /*
     std::ofstream datOutput;
     datOutput.open(datName);
     
-    datOutput << this->matrix->description() << std::endl;
+    datOutput << this->matrix->description() << std::endl;*/
+    
+    CSV csv = CSV(10, "h", "k", "l", "wavelength", "intensity", "countingSigma", "xCoord", "yCoord", "partiality", "resolution");
     
     for (int i = 0; i < reflectionCount(); i++)
     {
@@ -1559,19 +1597,14 @@ void MtzManager::writeToDat()
             double combinedX = shiftX + lastX;
             double combinedY = shiftY + lastY;
             
-            datOutput << miller->getH() << "\t" << miller->getK() << "\t" << miller->getL();
-            
-            datOutput << "\t" << miller->getWavelength();
-            datOutput << "\t" << miller->getRawIntensity();
-            datOutput << "\t" << miller->getCountingSigma();
-            datOutput << "\t" <<  combinedX << "\t" << combinedY << "\t"
-            << miller->getPartiality() << "\t" << miller->getBFactorScale() << "\t" << miller->getResolution() << std::endl;
+            csv.addEntry(0, (double)miller->getH(), (double)miller->getK(), (double)miller->getL(), miller->getWavelength(), miller->getRawIntensity(),
+                         miller->getCountingSigma(), combinedX, combinedY, miller->getPartiality(), miller->getResolution());
         }
     }
     
-    logged << "Wrote " << datName << " file" << std::endl;
+    csv.writeToFile(datName);
     
-    datOutput.close();
+    logged << "Wrote " << datName << " file" << std::endl;
 }
 
 void MtzManager::sendLog(LogLevel priority)
@@ -1593,7 +1626,7 @@ int MtzManager::rejectOverlaps()
     return count;
 }
 
-int MtzManager::removeStrongSpots(std::vector<SpotPtr> *spots)
+int MtzManager::removeStrongSpots(std::vector<SpotPtr> *spots, bool actuallyDelete)
 {
     int before = (int)spots->size();
     
@@ -1603,13 +1636,10 @@ int MtzManager::removeStrongSpots(std::vector<SpotPtr> *spots)
     {
         Reflection *ref = reflection(i);
         
-        count += ref->checkSpotOverlaps(spots);
+        count += ref->checkSpotOverlaps(spots, actuallyDelete);
     }
     
     int after = (int)spots->size();
-    
-    logged << "Before spot removal: " << before << " - after: " << after << std::endl;
-    sendLog(LogLevelDetailed);
     
     return count;
 }
@@ -1684,42 +1714,53 @@ void MtzManager::cutToResolutionWithSigma(double acceptableSigma)
 {
     double maxRes = maxResolution();
     vector<double> resolutions;
-    StatisticsManager::generateResolutionBins(0, maxRes, 10, &resolutions);
+    StatisticsManager::generateResolutionBins(0, 1 / maxRes, 10, &resolutions);
 
-    double cutoffResolution = maxResolution();
+    logged << resolutions.size() << " bins to " << 1 / maxRes << " Å." << std::endl;
+    logged << "(" << getFilename() << ") I/SigI by shell:" << std::endl;
     
-    for (int i = (int)resolutions.size() - 1; i > 0 && cutoffResolution == 0; i--)
+    double cutoffResolution = 1 / maxResolution();
+    bool alreadyCut = false;
+    
+    for (int i = (int)resolutions.size() - 1; i > 0; i--)
     {
         double isigiSum = 0;
         double weights = 0;
+        double highRes = resolutions[i];
+        double lowRes = resolutions[i - 1];
         
-        for (int i = 0; i < reflectionCount(); i++)
+        for (int j = 0; j < reflectionCount(); j++)
         {
-            double highRes = resolutions[i];
-            double lowRes = resolutions[i - 1];
-            
-            if (!reflection(i)->betweenResolutions(lowRes, highRes))
+            if (!reflection(j)->betweenResolutions(lowRes, highRes))
                 continue;
 
-            for (int j = 0; j < reflection(i)->millerCount(); j++)
+            for (int k = 0; k < reflection(j)->millerCount(); k++)
             {
-                MillerPtr miller = reflection(i)->miller(j);
+                MillerPtr miller = reflection(j)->miller(k);
                 
-                double weight = 1;
                 double isigi = miller->getRawIntensity() / miller->getCountingSigma();
+                double weight = 1;
                 
-                isigiSum += isigi;
+                isigiSum += isigi * weight;
                 weights += weight;
             }
         }
         
         double isigi = isigiSum / weights;
         
-        if (isigi > acceptableSigma)
+        logged << lowRes << " to " << highRes << " Å: " << isigi << " from " << weights;
+        
+        if (isigi > acceptableSigma && !alreadyCut)
         {
             cutoffResolution = highRes;
+            logged << " *** CUT HERE ***";
+            alreadyCut = true;
         }
+        
+        logged << std::endl;
     }
+    
+    sendLog();
     
     for (int i = 0; i < reflectionCount(); i++)
     {
@@ -1730,28 +1771,10 @@ void MtzManager::cutToResolutionWithSigma(double acceptableSigma)
         }
     }
     
-    logged << filename << ": rejected reflections over " << 1 / cutoffResolution << " Å." << std::endl;
+    logged << filename << ": I/sigI cutoff rejected reflections over " << cutoffResolution << " Å." << std::endl;
     sendLog();
 }
 
-void MtzManager::setAdditionalWeight(double weight)
-{
-    for (int i = 0; i < reflectionCount(); i++)
-    {
-        reflection(i)->setAdditionalWeight(weight);
-    }
-}
-
-void MtzManager::denormaliseMillers()
-{
-    for (int i = 0; i < reflectionCount(); i++)
-    {
-        for (int j = 0; j < reflection(i)->millerCount(); j++)
-        {
-            reflection(i)->miller(j)->denormalise();
-        }
-    }
-}
 
 bool MtzManager::checkUnitCell(double trueA, double trueB, double trueC, double tolerance)
 {
@@ -1777,20 +1800,6 @@ void MtzManager::resetFailedCount()
 {
     failedCount = 0;
 }
-
-#define PARAM_HROT 0
-#define PARAM_KROT 1
-#define PARAM_MOS 2
-#define PARAM_SPOT_SIZE 3
-#define PARAM_WAVELENGTH 4
-#define PARAM_BANDWIDTH 5
-#define PARAM_EXPONENT 6
-#define PARAM_B_FACTOR 7
-#define PARAM_SCALE_FACTOR 8
-#define PARAM_UNIT_CELL_A 9
-#define PARAM_UNIT_CELL_B 10
-#define PARAM_UNIT_CELL_C 11
-#define PARAM_NUM 12
 
 std::string MtzManager::getParamLine()
 {

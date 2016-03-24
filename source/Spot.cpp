@@ -14,6 +14,7 @@
 #include "Vector.h"
 #include <fstream>
 #include "FileParser.h"
+#include "CSV.h"
 
 double Spot::maxResolution = 0;
 double Spot::minIntensity = 0;
@@ -228,7 +229,7 @@ void Spot::makeProbe(int height, int background, int length)
 	}
 }
 
-void Spot::setXY(int x, int y)
+void Spot::setXY(double x, double y)
 {
 	this->x = x;
 	this->y = y;
@@ -375,53 +376,42 @@ bool Spot::isOnSameLineAsSpot(SpotPtr otherSpot, double toleranceDegrees)
 
 void Spot::writeDatFromSpots(std::string filename, std::vector<SpotPtr> spots)
 {
-    std::ofstream dat;
-    dat.open(filename);
+  //  std::ofstream dat;
+  //  dat.open(filename);
     int count = 0;
+    
+    CSV csv = CSV(9, "h", "k", "l", "angle", "1", "1", "x", "y", "1");
     
     for (int i = 0; i < spots.size(); i++)
     {
-        dat << "0\t0\t0\t" << spots[i]->angleInPlaneOfDetector() << "\t1\t1\t"
-        << spots[i]->x << "\t" << spots[i]->y
-        << "\t1" << std::endl;
+        csv.addEntry(1000, 0., 0., 0., spots[i]->angleInPlaneOfDetector(), 1., 1., spots[i]->getRawXY().first, spots[i]->getRawXY().second, 1.);
+    
+    //    dat << "0\t0\t0\t" << spots[i]->angleInPlaneOfDetector() << "\t1\t1\t"
+    //    << spots[i]->x << "\t" << spots[i]->y
+    //    << "\t1" << std::endl;
         
         count++;
     }
     
-    dat.close();
+    csv.writeToFile(filename);
+    //csv.plotColumns(6, 7);
+    
+//    dat.close();
 }
 
 vec Spot::estimatedVector()
 {
- /*   if (lastEstimatedVector.h != 0 && lastEstimatedVector.k != 0 && lastEstimatedVector.l != 0)
-    {
-        return lastEstimatedVector;
-    }
-    */
-    double beamX = getParentImage()->getBeamX() * getParentImage()->getMmPerPixel();
-    double beamY = getParentImage()->getBeamY() * getParentImage()->getMmPerPixel();
+    vec estimated = getParentImage()->pixelsToReciprocalCoordinates(getX(), getY());
     
-    double wavelength = getParentImage()->getWavelength();
+    return estimated;
+}
+
+void Spot::setXYFromEstimatedVector(vec hkl)
+{
+    std::pair<double, double> xyPix = getParentImage()->reciprocalCoordinatesToPixels(hkl);
     
-    double height = getParentImage()->getYDim();
-    
-    double mmX = getX() * getParentImage()->getMmPerPixel();
- //   double mmY = (height - getY()) * getParentImage()->getMmPerPixel();
-    double mmY = getY() * getParentImage()->getMmPerPixel();
-    
-    double detector_distance = getParentImage()->getDetectorDistance();
-    
-    vec crystalVec = new_vector(beamX, beamY, 0 - detector_distance);
-    vec spotVec = new_vector(mmX, mmY, 0);
-    vec reciprocalCrystalVec = new_vector(0, 0, 0 - 1 / wavelength);
-    
-    vec crystalToSpot = vector_between_vectors(crystalVec, spotVec);
-    scale_vector_to_distance(&crystalToSpot, 1 / wavelength);
-    add_vector_to_vector(&reciprocalCrystalVec, crystalToSpot);
-    
-    reciprocalCrystalVec.k *= -1;
-    
-    return reciprocalCrystalVec;
+    x = xyPix.first;
+    y = xyPix.second;
 }
 
 std::string Spot::spotLine()
@@ -438,4 +428,44 @@ bool Spot::isSameAs(SpotPtr spot2)
     return (spot2->getX() == getX() && spot2->getY() == getY());
 }
 
+double Spot::closeToSecondSpot(SpotPtr spot2, double squareMinDistance)
+{
+    if (this == &*spot2)
+        return false;
+    
+    vec reciprocalSpot1 = estimatedVector();
+    vec reciprocalSpot2 = spot2->estimatedVector();
+    
+    take_vector_away_from_vector(reciprocalSpot1, &reciprocalSpot2);
+    
+    double square = length_of_vector_squared(reciprocalSpot2);
+    
 
+    return (square < squareMinDistance);
+}
+
+void Spot::spotsAndVectorsToResolution(double lowRes, double highRes, std::vector<SpotPtr> spots, std::vector<SpotVectorPtr> spotVectors, std::vector<SpotPtr> *lowResSpots, std::vector<SpotVectorPtr> *lowResSpotVectors)
+{
+    double minResol = lowRes == 0 ? 0 : (1 / lowRes);
+    double maxResol = highRes == 0 ? FLT_MAX : (1 / highRes);
+    
+    for (int i = 0; i < spots.size(); i++)
+    {
+        if (spots[i]->resolution() < maxResol && spots[i]->resolution() > minResol)
+        {
+            lowResSpots->push_back(spots[i]);
+        }
+    }
+    
+    for (int i = 0; i < spotVectors.size(); i++)
+    {
+        SpotPtr firstSpot = spotVectors[i]->getFirstSpot();
+        SpotPtr secondSpot = spotVectors[i]->getSecondSpot();
+        
+        if ((firstSpot->resolution() < maxResol && secondSpot->resolution() < maxResol)
+            && (firstSpot->resolution() > minResol && secondSpot->resolution() > minResol))
+        {
+            lowResSpotVectors->push_back(spotVectors[i]);
+        }
+    }
+}

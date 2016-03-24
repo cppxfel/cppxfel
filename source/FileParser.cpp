@@ -162,7 +162,9 @@ void FileParser::generateFunctionList()
     parserMap["MAXIMUM_CYCLES"] = simpleInt;
     parserMap["STOP_REFINEMENT"] = simpleBool;
 
+    parserMap["SET_SIGMA_TO_UNITY"] = simpleBool;
     parserMap["APPLY_UNREFINED_PARTIALITY"] = simpleBool;
+    parserMap["BINARY_PARTIALITY"] = simpleBool;
     parserMap["MINIMIZATION_METHOD"] = simpleInt;
     parserMap["NELDER_MEAD_CYCLES"] = simpleInt;
     parserMap["MEDIAN_WAVELENGTH"] = simpleBool;
@@ -205,6 +207,9 @@ void FileParser::generateFunctionList()
     parserMap["SMOOTH_FUNCTION"] = simpleBool;
     parserMap["NORMALISE_PARTIALITIES"] = simpleBool;
     parserMap["REPLACE_REFERENCE"] = simpleBool;
+    parserMap["REFINE_ENERGY_SPECTRUM"] = simpleBool;
+    parserMap["FREE_MILLER_LIST"] = simpleString;
+    parserMap["FREE_MILLER_PROPORTION"] = simpleFloat;
     
 	parserMap["INITIAL_WAVELENGTH"] = simpleFloat;
 	parserMap["INITIAL_BANDWIDTH"] = simpleFloat;
@@ -241,14 +246,13 @@ void FileParser::generateFunctionList()
     parserMap["OPTIMISING_UNIT_CELL_C"] = simpleBool;
 
 	parserMap["ORIENTATION_MATRIX_LIST"] = simpleString;
+    parserMap["SECOND_MATRIX_LIST"] = simpleString;
     parserMap["MATRIX_LIST_VERSION"] = simpleFloat;
 	parserMap["INITIAL_MTZ"] = simpleString;
     parserMap["IMAGE_LIMIT"] = simpleInt;
     parserMap["IMAGE_SKIP"] = simpleInt;
     parserMap["NEW_MATRIX_LIST"] = simpleString;
     
-    parserMap["RECALCULATE_NORM"] = simpleBool;
-    parserMap["DENORMALISE_PARTIALITY"] = simpleBool;
     parserMap["RECALCULATE_SIGMA"] = simpleBool;
     parserMap["MERGE_ANOMALOUS"] = simpleBool;
     parserMap["FAKE_ANOMALOUS"] = simpleBool;
@@ -256,6 +260,9 @@ void FileParser::generateFunctionList()
 	parserMap["MINIMUM_REFLECTION_CUTOFF"] = simpleInt;
     parserMap["APPLY_INFLATION"] = simpleBool;
     parserMap["MINIMUM_MULTIPLICITY"] = simpleInt;
+    parserMap["THREADED_MERGE"] = simpleBool;
+    parserMap["FAST_MERGE"] = simpleBool;
+    parserMap["INDEX_STARTING_DATA"] = doubleVector;
 
 	// Indexing parameters
 
@@ -272,9 +279,12 @@ void FileParser::generateFunctionList()
     parserMap["REFINE_ORIENTATIONS"] = simpleBool;
     parserMap["REFINE_DISTANCES"] = simpleBool;
     parserMap["INDEXING_ORIENTATION_TOLERANCE"] = simpleFloat;
+    parserMap["LOW_INTENSITY_PENALTY"] = simpleBool;
 	parserMap["INTENSITY_THRESHOLD"] = simpleFloat;
     parserMap["ABSOLUTE_INTENSITY"] = simpleBool;
 	parserMap["METROLOGY_SEARCH_SIZE"] = simpleInt;
+    parserMap["METROLOGY_MOVE_THRESHOLD"] = simpleFloat;
+    parserMap["FOCUS_ON_PEAK_SIZE"] = simpleInt;
 	parserMap["SHOEBOX_FOREGROUND_PADDING"] = simpleInt;
 	parserMap["SHOEBOX_NEITHER_PADDING"] = simpleInt;
 	parserMap["SHOEBOX_BACKGROUND_PADDING"] = simpleInt;
@@ -291,6 +301,7 @@ void FileParser::generateFunctionList()
     parserMap["ORIENTATION_SCORE"] = simpleInt;
     parserMap["ORIENTATION_CORRECTION"] = doubleVector;
     parserMap["IMAGE_MASKED_VALUE"] = simpleInt;
+    parserMap["IMAGE_IGNORE_UNDER_VALUE"] = simpleInt;
     parserMap["SPHERE_THICKNESS"] = simpleFloat;
     parserMap["SIGMA_RESOLUTION_CUTOFF"] = simpleFloat;
     parserMap["PIXEL_COUNT_CUTOFF"] = simpleInt;
@@ -299,9 +310,15 @@ void FileParser::generateFunctionList()
     parserMap["REFINE_UNIT_CELL_A"] = simpleBool;
     parserMap["REFINE_UNIT_CELL_B"] = simpleBool;
     parserMap["REFINE_UNIT_CELL_C"] = simpleBool;
+    parserMap["REFINE_UNIT_CELL_ALPHA"] = simpleBool;
+    parserMap["REFINE_UNIT_CELL_BETA"] = simpleBool;
+    parserMap["REFINE_UNIT_CELL_GAMMA"] = simpleBool;
     parserMap["STEP_UNIT_CELL_A"] = simpleFloat;
     parserMap["STEP_UNIT_CELL_B"] = simpleFloat;
     parserMap["STEP_UNIT_CELL_C"] = simpleFloat;
+    parserMap["STEP_UNIT_CELL_ALPHA"] = simpleFloat;
+    parserMap["STEP_UNIT_CELL_BETA"] = simpleFloat;
+    parserMap["STEP_UNIT_CELL_GAMMA"] = simpleFloat;
     parserMap["FROM_DIALS"] = simpleBool;
     parserMap["DO_NOT_REJECT_REFLECTIONS"] = simpleBool;
     parserMap["REFINE_IN_PLANE_OF_DETECTOR"] = simpleBool;
@@ -310,6 +327,8 @@ void FileParser::generateFunctionList()
     parserMap["SKIP_BAD_PIXELS"] = simpleBool;
     parserMap["ROUGH_CALCULATION"] = simpleBool;
 
+    parserMap["LEARNING_TO_INDEX"] = simpleBool;
+    parserMap["MINIMUM_SPOTS_EXPLAINED"] = simpleInt;
     parserMap["MINIMUM_TRUST_ANGLE"] = simpleFloat;
     parserMap["MINIMUM_TRUST_DISTANCE"] = simpleFloat;
     parserMap["SOLUTION_ANGLE_SPREAD"] = simpleFloat;
@@ -335,9 +354,13 @@ void FileParser::generateFunctionList()
     parserMap["MINIMUM_SOLUTION_NETWORK_COUNT"] = simpleInt;
     parserMap["SCRAMBLE_SPOT_VECTORS"] = simpleBool;
     parserMap["NETWORK_TRIAL_LIMIT"] = simpleInt;
+    parserMap["INDEXING_TIME_LIMIT"] = simpleInt;
+    parserMap["MAX_LATTICES_PER_IMAGE"] = simpleInt;
     parserMap["CHECKING_COMMON_SPOTS"] = simpleBool;
     parserMap["REJECT_IF_SPOT_COUNT"] = simpleInt;
     parserMap["POWDER_PATTERN_STEP"] = simpleFloat;
+    parserMap["POWDER_PATTERN_STEP_ANGLE"] = simpleFloat;
+    parserMap["BAD_SOLUTION_HIGHEST_PEAK"] = simpleInt;
     
     parserMap["IMAGE_MIN_SPOT_INTENSITY"] = simpleFloat;
     parserMap["IMAGE_MIN_CORRELATION"] = simpleFloat;
@@ -346,6 +369,7 @@ void FileParser::generateFunctionList()
     parserMap["IMAGE_SPOT_PROBE_BACKGROUND"] = simpleInt;
     parserMap["IMAGE_SPOT_PROBE_PADDING"] = simpleInt;
     parserMap["PROBE_DISTANCES"] = doubleVector;
+    parserMap["RECIPROCAL_UNIT_CELL"] = doubleVector;
     
     parserMap["IGNORE_MISSING_IMAGES"] = simpleBool;
     

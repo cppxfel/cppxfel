@@ -11,8 +11,12 @@
 #include "parameters.h"
 #include "MtzManager.h"
 #include "PanelParser.h"
+#include "LoggableObject.h"
+#include <scitbx/mat3.h>
 
-class MtzRefiner
+class IndexManager;
+
+class MtzRefiner : public LoggableObject
 {
 private:
     vector<MtzPtr> mtzManagers;
@@ -24,18 +28,22 @@ private:
     static int imageMax(size_t lineCount);
     static void singleLoadImages(std::string *filename, vector<ImagePtr> *newImages, int offset);
     static void readSingleImageV2(std::string *filename, vector<ImagePtr> *newImages, vector<MtzPtr> *newMtzs, int offset);
+    IndexManager *indexManager;
     void applyParametersToImages();
     static int cycleNum;
     bool hasRefined;
     bool isPython;
+    static int imageSkip(size_t totalCount);
 public:
 	MtzRefiner();
 	virtual ~MtzRefiner();
 
     void index();
+    void indexFromScratch();
     void powderPattern();
 	bool loadInitialMtz(bool force = false);
-
+    void indexingParameterAnalysis();
+    
 	void cycle();
 	void cycleThread(int offset);
 	static void cycleThreadWrapper(MtzRefiner *object, int offset);
@@ -46,8 +54,6 @@ public:
 	void readMatricesAndMtzs();
     void refineDetectorGeometry();
     void refineMetrology();
-    void loadMillersIntoPanels();
-    void plotDetectorGains();
     void initialMerge();
     void orientationPlot();
     void applyUnrefinedPartiality();
@@ -60,8 +66,9 @@ public:
 	static void integrateImagesWrapper(MtzRefiner *object,
 			vector<MtzPtr> *&mtzSubset, int offset, bool orientation);
 	void integrateImages(vector<MtzPtr> *&mtzSubset, int offset, bool orientation);
-	void readMatricesAndImages(std::string *filename = NULL, bool areImages = true);
-
+	void readMatricesAndImages(std::string *filename = NULL, bool areImages = true, std::vector<ImagePtr> *targetImages = NULL);
+    void combineLists();
+    
 	static void readMatrix(double (&matrix)[9], std::string line);
 	static void singleThreadRead(vector<std::string> lines,
 			vector<MtzPtr> *mtzManagers, int offset);
@@ -89,6 +96,7 @@ public:
         isPython = newValue;
     }
     
+    void setupFreeMillers();
     void refineDistances();
     void polarisationGraph();
     void displayIndexingHands();

@@ -8,6 +8,7 @@
 #include "InputFileParser.h"
 #include "FileReader.h"
 #include "MtzRefiner.h"
+#include "Miller.h"
 #include <sstream>
 #include "Logger.h"
 //#include <boost/python.hpp>
@@ -130,6 +131,7 @@ void InputFileParser::parse(bool fromPython)
     log.str("");
     
     refiner = boost::shared_ptr<MtzRefiner>(new MtzRefiner());
+    Miller::setupStaticVariables();
     
     int seed = FileParser::getKey("RANDOM_SEED", 0);
     srand((unsigned int)seed);
@@ -216,12 +218,6 @@ void InputFileParser::parse(bool fromPython)
                 refiner->readMatricesAndMtzs();
             }
             
-            if (line == "DETECTOR_GAINS")
-            {
-                understood = true;
-                refiner->plotDetectorGains();
-            }
-            
             if (line == "LOAD_INITIAL_MTZ")
             {
                 understood = true;
@@ -264,10 +260,29 @@ void InputFileParser::parse(bool fromPython)
                 refiner->index();
             }
             
+            if (line == "INDEX_FROM_SCRATCH")
+            {
+                understood = true;
+                
+                refiner->indexFromScratch();
+            }
+            
             if (line == "POWDER_PATTERN")
             {
                 understood = true;
                 refiner->powderPattern();
+            }
+            
+            if (line == "INDEXING_PARAMETER_ANALYSIS")
+            {
+                understood = true;
+                refiner->indexingParameterAnalysis();
+            }
+            
+            if (line == "COMBINE_LISTS")
+            {
+                understood = true;
+                refiner->combineLists();
             }
             
             if (!understood)

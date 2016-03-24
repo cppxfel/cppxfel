@@ -19,7 +19,8 @@ class InputFileParser : public FileParser
 private:
     boost::shared_ptr<MtzRefiner> refiner;
     int processOptions(std::vector<std::string> lines);
-//    boost::python::object pythonSelf;
+    bool dry;
+    
 public:
     void refine(int maxCycles);
     vector<MtzPtr> mtzs();
@@ -29,11 +30,16 @@ public:
 
 	InputFileParser(std::string filename, std::vector<std::string> extras = std::vector<std::string>());
 	virtual ~InputFileParser();
-    /*
-    void setPythonSelf(boost::python::object object)
+    
+    void setDry(bool newDry)
     {
-        pythonSelf = object;
-    }*/
+        dry = newDry;
+    }
+    
+    bool isDry()
+    {
+        return dry;
+    }
     
     boost::shared_ptr<MtzRefiner> getRefiner()
     {

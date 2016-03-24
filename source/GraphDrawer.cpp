@@ -21,8 +21,8 @@
 #include <cctbx/miller/asu.h>
 #include <cctbx/miller.h>
 #include <cctbx/sgtbx/space_group.h>
-
-
+#include "Holder.h"
+#include "Miller.h"
 
 GraphDrawer::GraphDrawer(MtzManager *mtz)
 {
@@ -963,7 +963,7 @@ void GraphDrawer::partialityPlot(std::string filename, GraphMap properties, doub
 //	plot(filename + "_scatter", properties, scatterX, scatterY);
 }
 
-void GraphDrawer::plotPartialityStats()
+void GraphDrawer::plotPartialityStats(int h, int k, int l)
 {
  //   double threshold = 100;
     GraphMap map;
@@ -976,50 +976,28 @@ void GraphDrawer::plotPartialityStats()
     
     vector<double> xs, ys;
     
+    bool checkingHKL = !(h == 0 && k == 0 && l == 0);
+    double reflId = Reflection::reflectionIdForCoordinates(h, k, l);
+    
     for (int i = 0; i < mtz->reflectionCount(); i++)
     {
         bool okay = false;
         
-        for (int j = 0; j < mtz->reflection(i)->millerCount(); j++)
+        if (checkingHKL && mtz->reflection(i)->getReflId() == reflId)
         {
-            MillerPtr miller = mtz->reflection(i)->miller(j);
-            
-            if (miller->getH() == 1 && miller->getK() == 0 && miller->getL() == 4)
-            {
-                okay = true;
-            }
+            okay = true;
+            std::ostringstream logged;
+            logged << "Found reflection " << h << " " << k << " " << l << std::endl;
+            Logger::mainLogger->addStream(&logged);
         }
         
         if (okay == false)
             continue;
-    /*
-        if (mtz->reflection(i)->millerCount() < 2)
-            continue;
-        
-        if (!mtz->reflection(i)->anyAccepted())
-            continue;
-        
-        if (mtz->reflection(i)->meanIntensity() < threshold)
-            continue;
-        
-        if (!mtz->reflection(i)->betweenResolutions(0, 2.0))
-            continue;
-        */
-     //   double max_intensity = mtz->reflection(i)->meanIntensity();
-        
+    
         for (int j = 0; j < mtz->reflection(i)->millerCount(); j++)
         {
             double partiality = mtz->reflection(i)->miller(j)->getPartiality();
-/*
-            if (partiality < 0.2 || partiality > 1)
-            	continue;*/
-           // double wavelength = mtz->reflection(i)->miller(j)->getWavelength();
-            
             double percentage = mtz->reflection(i)->miller(j)->getRawIntensity();
-/*            if (percentage < 0)
-                percentage = 0;*/
-            
-        //    if (rand() % 20 == 0)
             {
                 xs.push_back(partiality);
                 ys.push_back(percentage);

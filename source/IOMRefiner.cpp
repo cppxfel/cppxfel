@@ -17,7 +17,7 @@
 #include <fstream>
 #include "Panel.h"
 #include "FileParser.h"
-
+#include "Miller.h"
 
 
 #define BIG_BANDWIDTH 0.015
@@ -29,10 +29,13 @@
 
 double IOMRefiner::intensityThreshold;
 bool IOMRefiner::absoluteIntensity = false;
+bool IOMRefiner::lowIntensityPenalty = false;
 
 IOMRefiner::IOMRefiner(ImagePtr newImage, MatrixPtr matrix)
 {
     int spgNum = FileParser::getKey("SPACE_GROUP", -1);
+    
+    Reflection::setSpaceGroup(spgNum);
     
     spaceGroup = ccp4spg_load_by_standard_num(spgNum);
     initialStep = FileParser::getKey("INITIAL_ORIENTATION_STEP", INITIAL_ORIENTATION_STEP);
@@ -42,15 +45,14 @@ IOMRefiner::IOMRefiner(ImagePtr newImage, MatrixPtr matrix)
     testBandwidth = FileParser::getKey("OVER_PRED_BANDWIDTH",
                                        OVER_PRED_BANDWIDTH) / 2;
     testSpotSize = FileParser::getKey("OVER_PRED_RLP_SIZE",
-                                      OVER_PRED_SPOT_SIZE);;
+                                      OVER_PRED_SPOT_SIZE);
     maxResolution = FileParser::getKey(
                                        "MAX_INTEGRATED_RESOLUTION", MAX_INTEGRATED_RESOLUTION);;
     minResolution = FileParser::getKey(
                                        "MIN_INTEGRATED_RESOLUTION", 0.0);;
-    search = FileParser::getKey("METROLOGY_SEARCH_SIZE",
-                                METROLOGY_SEARCH_SIZE);;
     searchSize = FileParser::getKey("METROLOGY_SEARCH_SIZE",
-                                    METROLOGY_SEARCH_SIZE);;
+                                    METROLOGY_SEARCH_SIZE);
+    
     reference = NULL;
     lastMtz = MtzPtr();
     roughCalculation = FileParser::getKey("ROUGH_CALCULATION", false);
@@ -70,6 +72,7 @@ IOMRefiner::IOMRefiner(ImagePtr newImage, MatrixPtr matrix)
     refinement = RefinementTypeOrientationMatrixEarly;
     image = newImage;
     absoluteIntensity = FileParser::getKey("ABSOLUTE_INTENSITY", false);
+    lowIntensityPenalty = FileParser::getKey("LOW_INTENSITY_PENALTY", false);
     this->matrix = matrix;
     refineA = FileParser::getKey("REFINE_UNIT_CELL_A", false);
     refineB = FileParser::getKey("REFINE_UNIT_CELL_B", false);;
@@ -77,6 +80,7 @@ IOMRefiner::IOMRefiner(ImagePtr newImage, MatrixPtr matrix)
     unitCell = FileParser::getKey("UNIT_CELL", vector<double>());
     orientationTolerance = FileParser::getKey("INDEXING_ORIENTATION_TOLERANCE", INDEXING_ORIENTATION_TOLERANCE);
     needsReintegrating = true;
+    recalculateMillerPositions = false;
     
     int rotationModeInt = FileParser::getKey("ROTATION_MODE", 0);
     rotationMode = (RotationMode)rotationModeInt;
@@ -201,10 +205,21 @@ void IOMRefiner::getWavelengthHistogram(vector<double> &wavelengths,
             
             total += weight;
             if (strong)
+            {
                 frequency += weight;
+            }
+            else if (lowIntensityPenalty)
+            {
+                frequency -= weight / 4;
+            }
+            
+            if (frequency < 0)
+            {
+                frequency = 0;
+            }
         }
         
-        logged << i << "\t";
+        logged << std::setprecision(4) << i << "\t";
         
         for (int i=0; i < frequency; i++)
         {
@@ -239,6 +254,9 @@ void IOMRefiner::calculateNearbyMillers(bool rough)
     double minSphere = 1 / wavelength * (1 - sphereThickness);
     double maxSphere = 1 / wavelength * (1 + sphereThickness);
     
+    double minSphereSquared = pow(minSphere, 2);
+    double maxSphereSquared = pow(maxSphere, 2);
+    
     nearbyMillers.clear();
     
     int maxMillers[3];
@@ -257,6 +275,8 @@ void IOMRefiner::calculateNearbyMillers(bool rough)
     
     int overRes = 0;
     int underRes = 0;
+    double maxDistSquared = pow(1 / maxResolution, 2);
+    double minResolutionSquared = pow(1 / minResolution, 2);
     
     for (int h = -maxMillers[0]; h < maxMillers[0]; h++)
     {
@@ -268,8 +288,6 @@ void IOMRefiner::calculateNearbyMillers(bool rough)
                     continue;
                 
                 MillerPtr newMiller = MillerPtr(new Miller(NULL, h, k, l));
-                
-                newMiller->setSelf(newMiller);
                 newMiller->setImageAndIOMRefiner(getImage(), this);
                 
                 if (rough == false)
@@ -287,9 +305,9 @@ void IOMRefiner::calculateNearbyMillers(bool rough)
                 vec beam = new_vector(0, 0, -1 / wavelength);
                 vec beamToMiller = vector_between_vectors(beam, hkl);
                 
-                double sphereRadius = length_of_vector(beamToMiller);
+                double sphereRadiusSquared = length_of_vector_squared(beamToMiller);
                 
-                if (sphereRadius < minSphere || sphereRadius > maxSphere)
+                if (sphereRadiusSquared < minSphereSquared || sphereRadiusSquared > maxSphereSquared)
                 {
                     double ewaldSphere = getEwaldSphereNoMatrix(hkl);
                     
@@ -297,19 +315,17 @@ void IOMRefiner::calculateNearbyMillers(bool rough)
                     {
                         continue;
                     }
-                    
-//                    continue;
                 }
                 
-                double res = length_of_vector(hkl);
+                double res = length_of_vector_squared(hkl);
                 
-                if (res > 1 / maxResolution)
+                if (res > maxDistSquared)
                 {
                     overRes++;
                     continue;
                 }
                 
-                if (minResolution > 0 && res < 1 / minResolution)
+                if (minResolution > 0 && res < minResolutionSquared)
                 {
                     underRes++;
                     continue;
@@ -332,6 +348,20 @@ void IOMRefiner::calculateNearbyMillers(bool rough)
     needsReintegrating = true;
 }
 
+void IOMRefiner::lockUnitCellDimensions()
+{
+    double spgNum = spaceGroup->spg_num;
+    if (spgNum >= 75 && spgNum <= 194)
+    {
+        unitCell[1] = unitCell[0];
+    }
+    if (spgNum >= 195)
+    {
+        unitCell[1] = unitCell[0];
+        unitCell[2] = unitCell[0];
+    }
+}
+
 void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool complexShoebox, bool perfectCalculation)
 {
     MatrixPtr matrix = getMatrix();
@@ -340,6 +370,7 @@ void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool co
     {
    //     unitCell[1] = unitCell[0];
         
+        lockUnitCellDimensions();
         matrix->changeOrientationMatrixDimensions(unitCell[0], unitCell[1], unitCell[2], unitCell[3], unitCell[4], unitCell[5]);
     }
     double wavelength = getImage()->getWavelength();
@@ -370,6 +401,9 @@ void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool co
     
     if (rotationMode == RotationModeHorizontalVertical)
     {
+        logged << "Rotating by " << hRot << ", " << kRot << ", " << lRot << std::endl;
+        sendLog(LogLevelDetailed);
+        
         Miller::rotateMatrixHKL(hRot, kRot, lRot, matrix, &newMatrix);
     }
     else if (rotationMode == RotationModeUnitCellABC)
@@ -377,9 +411,11 @@ void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool co
         Miller::rotateMatrixABC(aRot, bRot, cRot, matrix, &newMatrix);
     }
     
+    lastRotatedMatrix = newMatrix;
+    
     std::vector<MillerPtr> *chosenMillerArray = &nearbyMillers;
     
-    if (!perfectCalculation && roughCalculation && !needsReintegrating)
+    if (!perfectCalculation && roughCalculation && !needsReintegrating && roughMillers.size())
     {
         chosenMillerArray = &roughMillers;
     }
@@ -411,8 +447,10 @@ void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool co
             continue;
         }
         
-        miller->recalculatePartiality(newMatrix, 0.0, testSpotSize,
-                                      wavelength, bandwidth, 1.5);
+        miller->crossesBeamRoughly(newMatrix, 0.0, testSpotSize, wavelength, bandwidth);
+        
+      //  miller->recalculatePartiality(newMatrix, 0.0, testSpotSize,
+       //                               wavelength, bandwidth, 1.5, true);
         
         if (i == 0)
         {
@@ -428,7 +466,7 @@ void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool co
             continue;
         }
         
-        miller->setPartialityModel(PartialityModelScaled);
+  //      miller->setPartialityModel(PartialityModelScaled);
         miller->getWavelength(newMatrix);
         
         if (complexShoebox)
@@ -440,9 +478,8 @@ void IOMRefiner::checkAllMillers(double maxResolution, double bandwidth, bool co
             miller->makeComplexShoebox(wavelength, initialBandwidth, initialMosaicity, initialRlpSize);
         }
         
-        if (needsReintegrating || !roughCalculation)
+        if (needsReintegrating || !roughCalculation || recalculateMillerPositions)
         {
-       //     miller->positionOnDetector(matrix, &roughX, &roughY);
             miller->integrateIntensity(newMatrix);
         }
         
@@ -494,7 +531,7 @@ double IOMRefiner::minimizeParameter(double *meanStep, double *param, int whichA
     for (double i = bestParam - *meanStep; j < 3; i += *meanStep)
     {
         *param = i;
-        this->checkAllMillers(maxResolution, testBandwidth);
+        this->checkAllMillers(maxResolution, testBandwidth, false, false);
         param_scores[j] = score(whichAxis);
         logged << param_scores[j] << ", ";
         param_trials[j] = i;
@@ -511,7 +548,7 @@ double IOMRefiner::minimizeParameter(double *meanStep, double *param, int whichA
         }
     
     *param = param_trials[param_min_num];
-    this->checkAllMillers(maxResolution, testBandwidth);
+    this->checkAllMillers(maxResolution, testBandwidth, false, false);
     
     logged << "chosen no. " << param_min_num << std::endl;
     
@@ -628,24 +665,6 @@ int IOMRefiner::getTotalReflectionsWithinBandwidth()
     }
     
     return count;
-}
-
-double IOMRefiner::getTotalIntegratedSignal()
-{
-    double totalIntensity = 0;
-    
-    for (int i = 0; i < millers.size(); i++)
-    {
-        if (!std::isfinite(millers[i]->getRawIntensity()))
-            continue;
-        
-        if (millers[i]->getRawIntensity() <= 0)
-            continue;
-        
-        totalIntensity += millers[i]->getRawIntensity();
-    }
-    
-    return totalIntensity;
 }
 
 void IOMRefiner::findSpots()
@@ -767,24 +786,6 @@ void IOMRefiner::duplicateSpots(vector<ImagePtr> images)
     std::cout << "Spots removed: " << spotsRemoved << std::endl;
 }
 
-void IOMRefiner::scatterSpots(vector<ImagePtr> images)
-{
-    for (int i = 0; i < images.size(); i++)
-    {
-        for (int j = 0; j < images[i]->IOMRefinerCount(); j++)
-        {
-            IOMRefinerPtr IOMRefiner = images[i]->getIOMRefiner(j);
-            
-            vector<Spot *> spots = IOMRefiner->getSpots();
-            
-            for (int j = 0; j < spots.size(); j++)
-            {
-                std::cout << spots[j]->scatteringAngle(images[i]) << std::endl;
-            }
-        }
-    }
-}
-
 void IOMRefiner::writeDatFromSpots(std::string filename)
 {
     std::ofstream dat;
@@ -810,60 +811,82 @@ void IOMRefiner::writeDatFromSpots(std::string filename)
 }
 
 
-int IOMRefiner::identicalSpotsAndMillers()
-{
-    int count = 0;
-    
-    for (int i = 0; i < expectedSpots && i < spots.size(); i++)
-    {
-        for (int j = 0; j < millers.size(); j++)
-        {
-            int x1 = spots[i]->getX();
-            int x2 = millers[j]->getLastX();
-            
-            int y1 = spots[i]->getY();
-            int y2 = millers[j]->getLastY();
-            
-            int diffX = abs(x2 - x1);
-            int diffY = abs(y2 - y1);
-            
-            if (diffX < 4 && diffY < 4)
-                count++;
-        }
-    }
-    
-    return count;
-}
-
-double IOMRefiner::medianIntensity()
-{
-    vector<double> intensities = vector<double>();
-    
-    for (int i = 0; i < millers.size(); i++)
-    {
-        intensities.push_back(millers[i]->getRawIntensity());
-    }
-    
-    std::sort(intensities.begin(), intensities.end());
-    
-    int mid = (int)intensities.size() / 2;
-    
-    if (intensities.size() % 2 == 0)
-    {
-        return intensities[mid];
-    }
-    else
-    {
-        return (intensities[mid] + intensities[mid + 1]) / 2;
-    }
-    
-}
-
 double IOMRefiner::score(int whichAxis, bool silent)
 {
     if (refinement == RefinementTypeDetectorWavelength)
     {
-        return 0 - getTotalReflections();
+        double value = getTotalReflections();
+        logged << "Total reflections within bandwidth: " << value << std::endl;
+        sendLog();
+        return 0 - value;
+    }
+    
+    if (refinement == RefinementTypeOrientationMatrixReverse)
+    {
+        MatrixPtr invRotation = lastRotatedMatrix->getRotation()->inverse3DMatrix();
+        MatrixPtr invTransform = lastRotatedMatrix->getUnitCell()->inverse3DMatrix();
+        MatrixPtr newMatrix = MatrixPtr();
+        Miller::rotateMatrixHKL(hRot, kRot, lRot, MatrixPtr(new Matrix()), &newMatrix);
+
+        std::vector<double> ewaldWavelengths;
+        
+        for (int i = 0; i < getImage()->spotCount(); i++)
+        {
+            SpotPtr spot = getImage()->spot(i);
+            
+            vec estimatedVec = spot->estimatedVector();
+            
+            newMatrix->multiplyVector(&estimatedVec);
+            
+            double ewald = getEwaldSphereNoMatrix(estimatedVec);
+            
+            ewaldWavelengths.push_back(ewald);
+            
+          //  invRotation->printDescription();
+            
+            invTransform->multiplyVector(&estimatedVec);
+            invRotation->multiplyVector(&estimatedVec);
+            
+        //    vec remainder = new_vector(fmod(estimatedVec.h, 1), fmod(estimatedVec.k, 1), fmod(estimatedVec.l, 1));
+            logged << estimatedVec.h << ", " << estimatedVec.k << ", " << estimatedVec.l << std::endl;
+            
+         //   double addition = length_of_vector_squared(remainder);
+            
+         //   sumSqrDiff += addition;
+            
+         //   sendLog();
+        }
+        
+        double stdev = standard_deviation(&ewaldWavelengths);
+        
+        logged << "Standard deviation of Ewald sphere wavelengths: " << stdev << std::endl;
+        sendLog();
+        
+        return stdev;
+    }
+    
+    if (refinement == RefinementTypeRefineLAxis)
+    {
+        double averageShift = 0;
+        int count = 0;
+        
+        for (int i = 0; i < millers.size(); i++)
+        {
+            if (millerReachesThreshold(millers[i]))
+            {
+                std::pair<double, double> shift = millers[i]->getShift();
+                double shiftDistance = sqrt(pow(shift.first, 2) + pow(shift.second, 2));
+                
+                averageShift += shiftDistance;
+                count++;
+            }
+        }
+        
+        averageShift /= count;
+        
+        logged << "Average shift: " << averageShift << std::endl;
+        sendLog(LogLevelDetailed);
+        return averageShift;
     }
     
     if (refinement == RefinementTypeOrientationMatrixEarly || refinement == RefinementTypeOrientationMatrixEarlySeparated)
@@ -896,7 +919,7 @@ double IOMRefiner::score(int whichAxis, bool silent)
         double total = getTotalReflectionsWithinBandwidth();
         //	double totalIntensity = getTotalIntegratedSignal();
         
-        double totalWeight = 15;
+        double totalWeight = 20;
         double stdevWeight = 15;
         
         double totalChange = total / lastTotal - 1;
@@ -905,6 +928,35 @@ double IOMRefiner::score(int whichAxis, bool silent)
         double score = (totalStdev * stdevWeight - totalChange * totalWeight);
         
         return score;
+    }
+    
+    if (refinement == RefinementTypeOrientationMatrixEarlyWeighted)
+    {
+        std::vector<double> wavelengths, weights;
+        
+        for (int i = 0; i < millers.size(); i++)
+        {
+            MillerPtr miller = millers[i];
+            
+            if (!millerReachesThreshold(miller))
+                continue;
+            
+            double weight = miller->getRawestIntensity();
+            
+            if (weight < 0) weight = 0;
+            
+            double wavelength = miller->getWavelength();
+            
+            if (!(wavelength == wavelength && weight == weight))
+                continue;
+            
+            wavelengths.push_back(wavelength);
+            weights.push_back(weight);
+        }
+        
+        double stdev = standard_deviation(&wavelengths, &weights);
+        
+        return stdev;
     }
     
     if (refinement == RefinementTypeOrientationMatrixStdevOnly)
@@ -926,11 +978,6 @@ double IOMRefiner::score(int whichAxis, bool silent)
         
         double stdev = standard_deviation(&wavelengths);
         return stdev;
-    }
-    
-    if (refinement == RefinementTypeOrientationMatrixPanelStdev)
-    {
-        return Panel::scoreBetweenResolutions(0, 1.6);
     }
     
     if (refinement == RefinementTypeOrientationMatrixHighestPeak)
@@ -958,86 +1005,9 @@ double IOMRefiner::score(int whichAxis, bool silent)
         
         double sum = 0;
         for (int i = 0; i < 3; i++)
-            sum += highest[0];
+            sum += highest[i];
         
         return 1 / sum;
-    }
-    
-    if (refinement == RefinementTypeOrientationMatrixSpots)
-    {
-        double score = 0;
-        checkAllMillers(maxResolution, testBandwidth);
-        
-        for (int j = 0; j < expectedSpots && j < spots.size(); j++)
-        {
-            for (int i = 0; i < millers.size(); i++)
-            {
-                double millerAngle = millers[i]->scatteringAngle(getImage());
-                double spotAngle = spots[j]->scatteringAngle(getImage());
-                
-                if (fabs(spotAngle - millerAngle) < ANGLE_TOLERANCE)
-                {
-                    spots[j]->setParentImage(getImage());
-                    score += spots[j]->weight();
-                    j++;
-                    i = 0;
-                }
-            }
-        }
-        
-        //	score /= millers.size();
-        
-        return 0 - score;
-    }
-    
-    if (refinement == RefinementTypeOrientationMatrixExactSpots)
-    {
-        double score = 0;
-        checkAllMillers(maxResolution, testBandwidth);
-        
-        for (int j = 0; j < expectedSpots && j < spots.size(); j++)
-        {
-            for (int i = 0; i < millers.size(); i++)
-            {
-                double millerX = millers[i]->getLastX();
-                double millerY = millers[i]->getLastY();
-                
-                double spotX = spots[j]->getX();
-                double spotY = spots[j]->getY();
-                
-                double distance = sqrt(pow(spotY - millerY, 2) + pow(spotX - millerX, 2));
-                
-                if (distance < SPOT_DISTANCE_TOLERANCE)
-                {
-                    spots[j]->setParentImage(getImage());
-                    score += spots[j]->weight();
-                    j++;
-                    i = 0;
-                }
-            }
-        }
-        
-        return 0 - score;
-    }
-    
-    if (refinement == RefinementTypeOrientationMatrixMedian)
-    {
-        return 0 - identicalSpotsAndMillers();
-    }
-    
-    if (refinement == RefinementTypeOrientationMatrixTotalSignal)
-    {
-        double total = 0;
-        
-        for (int i = 0; i < millers.size(); i++)
-        {
-            if (millerReachesThreshold(millers[i]))
-            {
-                total -= millers[i]->getRawestIntensity();
-            }
-        }
-        
-        return total;
     }
     
     if (refinement == RefinementTypeOrientationMatrixRough)
@@ -1058,19 +1028,6 @@ double IOMRefiner::score(int whichAxis, bool silent)
         double newScore = stdev / num;
         
         return newScore;
-    }
-    
-    if (refinement == RefinementTypeOrientationMatrixLate)
-    {
-        vector<double> wavelengths;
-        vector<int> frequencies;
-        
-        getWavelengthHistogram(wavelengths, frequencies);
-        
-        double leastSquares = least_squares_gaussian_fit(&wavelengths,
-                                                        &frequencies);
-        
-        return leastSquares;
     }
     
     return 0;
@@ -1153,101 +1110,6 @@ void IOMRefiner::refineDetectorAndWavelength(MtzManager *reference)
     getImage()->setDetectorDistance(testDistance);
     
     setSearchSize(oldSearch);
-}
-
-// in degrees, returns degree rotation
-double IOMRefiner::refineRoundBeamAxis(double start, double end, double wedge,
-                                   bool allSolutions)
-{
-   // double startRad = start * M_PI / 180;
-    vector<double> scores = vector<double>();
-    vector<double> wedges = vector<double>();
-    vector<double> hRads = vector<double>();
-    vector<double> kRads = vector<double>();
-    vector<MatrixPtr> matrices = vector<MatrixPtr>();
-    
-    refinement = RefinementTypeOrientationMatrixExactSpots;
-    
-    MatrixPtr copyMatrix = this->getMatrix()->copy();
-    
-    int solutionCount = allSolutions ? (int)solutions.size() : 1;
-    
-    for (int j = 0; j < solutionCount; j++)
-    {
-        double hRad = allSolutions ? solutions[j][0] : 0;
-        double kRad = allSolutions ? solutions[j][1] : 0;
-        
-        for (double i = start; i < end; i += wedge)
-        {
-            double radians = i * M_PI / 180;
-            
-            this->getMatrix()->rotate(hRad, kRad, radians);
-            checkAllMillers(maxResolution, testBandwidth);
-            
-            double total = score();
-            hRads.push_back(hRad);
-            kRads.push_back(kRad);
-            scores.push_back(total);
-            wedges.push_back(radians);
-            matrices.push_back(this->getMatrix()->copy());
-            logged << hRad << "\t" << kRad << "\t" << i << "\t" << total
-            << std::endl;
-            sendLog(LogLevelNormal);
-            
-            this->setMatrixCopy(copyMatrix);
-        }
-
-    }
-    
-    double bestScore = 0;
-    double bestWedge = 0;
-    double bestHRad = 0;
-    double bestKRad = 0;
-    MatrixPtr bestMatrix = MatrixPtr();
-    
-    for (int i = 0; i < scores.size(); i++)
-    {
-        if (scores[i] < bestScore)
-        {
-            bestScore = scores[i];
-            bestWedge = wedges[i];
-            bestHRad = hRads[i];
-            bestKRad = kRads[i];
-            bestMatrix = matrices[i];
-        }
-    }
-    
-    logged << "Rotating to best score for " << bestWedge
-    << "º rotation for " << bestHRad << ", " << bestKRad
-    << std::endl;
-    this->setMatrixCopy(bestMatrix);
-    logged << "Score: " << score() << std::endl;
-    
-    sendLog(LogLevelNormal);
-
-    
-    return bestWedge;
-}
-
-void IOMRefiner::refineRoundBeamAxis()
-{
-    refineRoundBeamAxis(0, 360, 10, true);
-  //  double betterWedge = refineRoundBeamAxis(-6, 6, 1, false);
-    
-    checkAllMillers(maxResolution, testBandwidth);
-    
-    double total = getTotalIntegratedSignal();
-    total /= millers.size();
-    
-    logged << "Signal is: " << total << std::endl;
-    sendLog(LogLevelNormal);
-    
-    this->getMatrix()->printDescription();
-}
-
-void IOMRefiner::matchMatrixToSpots()
-{
-    matchMatrixToSpots(RefinementTypeOrientationMatrixSpots);
 }
 
 bool compareScore(std::pair<vector<double>, double> a, std::pair<vector<double>, double> b)
@@ -1391,7 +1253,7 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
     {
         double hRotStep = initialStep;
         double kRotStep = initialStep;
-        double lRotStep = initialStep / 3;
+        double lRotStep = initialStep / 4;
         double aRotStep = initialStep;
         double bRotStep = initialStep;
         double cRotStep = initialStep;
@@ -1400,12 +1262,20 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
         double bStep = FileParser::getKey("STEP_UNIT_CELL_B", 0.2);
         double cStep = FileParser::getKey("STEP_UNIT_CELL_C", 0.2);
         
+        double alphaStep = FileParser::getKey("STEP_UNIT_CELL_ALPHA", 0.5);
+        double betaStep = FileParser::getKey("STEP_UNIT_CELL_BETA", 0.5);
+        double gammaStep = FileParser::getKey("STEP_UNIT_CELL_GAMMA", 0.5);
+        
         bool refinedH = (rotationMode == RotationModeHorizontalVertical) ? false : true;
         bool refinedK = (rotationMode == RotationModeHorizontalVertical) ? false : true;
         bool refinedL = (rotationMode == RotationModeHorizontalVertical) ? !FileParser::getKey("REFINE_IN_PLANE_OF_DETECTOR", false) : true;
         bool refinedA = !refineA;
         bool refinedB = !refineB;
         bool refinedC = !refineC;
+        bool refinedAlpha = !FileParser::getKey("REFINE_UNIT_CELL_ALPHA", false);
+        bool refinedBeta = !FileParser::getKey("REFINE_UNIT_CELL_BETA", false);
+        bool refinedGamma = !FileParser::getKey("REFINE_UNIT_CELL_GAMMA", false);
+        
         bool refinedARot = (rotationMode == RotationModeUnitCellABC) ? false : true;
         bool refinedBRot = (rotationMode == RotationModeUnitCellABC) ? false : true;
         bool refinedCRot = (rotationMode == RotationModeUnitCellABC) ? false : true;
@@ -1416,14 +1286,26 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
         {
             if (!refinedL)
             {
-                refinement = RefinementTypeDetectorWavelength;
+                int oldSearchSize = searchSize;
+                const int bigSize = 6;
+                
+                if (searchSize < bigSize)
+                {
+                    searchSize = bigSize;
+                }
+                
+                recalculateMillerPositions = true;
+                refinement = RefinementTypeRefineLAxis;
+                
                 this->minimizeParameter(&lRotStep, &lRot);
                 refinement = refinementType;
+                recalculateMillerPositions = false;
+                
+                searchSize = oldSearchSize;
             }
-            if (refinementType == RefinementTypeOrientationMatrixEarly && !refinedH && !refinedK)
+            if (!refinedH && !refinedK)
             {
                 this->minimizeTwoParameters(&hRotStep, &kRotStep, &hRot, &kRot);
-          //      checkAllMillers(maxResolution, testBandwidth);
             }
            
             if (!refinedARot && !refinedBRot && !refinedCRot)
@@ -1444,10 +1326,25 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
                 minimizeParameter(&bStep, &unitCell[1]);
             if (!refinedC)
                 minimizeParameter(&cStep, &unitCell[2]);
+            
+            if (!refinedAlpha)
+            {
+                minimizeParameter(&alphaStep, &unitCell[3]);
+            }
+            
+            if (!refinedBeta)
+            {
+                minimizeParameter(&betaStep, &unitCell[4]);
+            }
+
+            if (!refinedGamma)
+            {
+                minimizeParameter(&gammaStep, &unitCell[5]);
+            }
 
        //     refinementType = RefinementTypeOrientationMatrixEarly;
             
-            checkAllMillers(maxResolution, testBandwidth);
+            checkAllMillers(maxResolution, testBandwidth, false, false);
             
             getWavelengthHistogram(wavelengths, frequencies);
             histogram_gaussian(&wavelengths, &frequencies, mean, stdev);
@@ -1469,7 +1366,7 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
                     this->calculateNearbyMillers(true);
                 }
                 
-                refinement = RefinementTypeOrientationMatrixStdevOnly;
+            //    refinement = RefinementTypeOrientationMatrixStdevOnly;
             }
             
             if (hRotStep < orientationTolerance)
@@ -1493,6 +1390,13 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
                 refinedB = true;
             if (cStep < 0.01)
                 refinedC = true;
+            
+            if (alphaStep < 0.01)
+                refinedAlpha = true;
+            if (betaStep < 0.01)
+                refinedBeta = true;
+            if (gammaStep < 0.01)
+                refinedGamma = true;
             
             count++;
         }
@@ -1553,33 +1457,119 @@ void IOMRefiner::refineOrientationMatrix(RefinementType refinementType)
     bRot = 0;
     cRot = 0;
     
+    needsReintegrating = true;
     checkAllMillers(maxResolution, testBandwidth);
     getWavelengthHistogram(wavelengths, frequencies, LogLevelDetailed);
-    gaussian_fit(wavelengths, frequencies, (int)wavelengths.size(), &mean, &stdev,
-                 &theScore, true);
     
     sendLog(LogLevelNormal);
 }
 
 struct greater { template<class T> bool operator()(T const &a, T const &b) const { return a > b; } };
 
+bool IOMRefiner::isBasicGoodSolution()
+{
+    vector<double> wavelengths;
+    vector<int> frequencies;
+    
+    getWavelengthHistogram(wavelengths, frequencies, LogLevelDetailed);
+    
+    int maxFrequency = 0;
+    int freqMaxNum = 0;
+    int all = 0;
+    
+    for (int i = 0; i < frequencies.size(); i++)
+    {
+        if (frequencies[i] > maxFrequency)
+        {
+            maxFrequency = frequencies[i];
+            freqMaxNum = i;
+        }
+        
+        all += frequencies[i];
+    }
+
+    int totalSquashed = 0.33 * frequencies.size();
+    int start = freqMaxNum - totalSquashed / 2;
+    int end = freqMaxNum + totalSquashed / 2;
+    
+    if (start < 0) start = 0;
+    if (end > frequencies.size()) end = frequencies.size();
+    
+    int highSum = 0;
+    
+    for (int i = start; i < end; i++)
+    {
+        highSum += frequencies[i];
+    }
+
+    double squashedProportion = (double)highSum / (double)all;
+    
+    logged << "(" << getImage()->getFilename() << ") squashed proportion: " << squashedProportion << std::endl;
+    sendLog();
+    
+    return (squashedProportion > 0.6);
+}
+
 bool IOMRefiner::isGoodSolution()
 {
+    if (getImage()->getClass() == ImageClassDIALS)
+    {
+        logged << "Solution refinement has not been enabled for DIALS images yet - assuming good solution." << std::endl;
+        sendLog();
+        
+        return true;
+    }
+    
     bool good = false;
     double goodSolutionStdev = FileParser::getKey("GOOD_SOLUTION_ST_DEV", 0.04);
     double badSolutionStdev = FileParser::getKey("BAD_SOLUTION_ST_DEV", 0.066);
     double goodSolutionSumRatio = FileParser::getKey("GOOD_SOLUTION_SUM_RATIO", 6.5);
     int goodSolutionHighestPeak = FileParser::getKey("GOOD_SOLUTION_HIGHEST_PEAK", 17);
+    int badSolutionHighestPeak = FileParser::getKey("BAD_SOLUTION_HIGHEST_PEAK", 10);
     int minimumReflections = FileParser::getKey("MINIMUM_REFLECTION_CUTOFF", 30);
     std::ostringstream details;
     
-    logged << "Standard deviation: " << lastStdev << std::endl;
+    logged << "(" << getImage()->getFilename() << ") Standard deviation: " << lastStdev << std::endl;
     sendLog(LogLevelNormal);
     
     vector<double> wavelengths;
     vector<int> frequencies;
     
     getWavelengthHistogram(wavelengths, frequencies, LogLevelDetailed);
+    
+    
+    double totalMean = 0;
+    double totalStdev = 0;
+    int maxFrequency = 0;
+    
+    histogram_gaussian(&wavelengths, &frequencies, totalMean, totalStdev);
+    
+    for (int i = 0; i < frequencies.size(); i++)
+    {
+        if (frequencies[i] > maxFrequency)
+        {
+            maxFrequency = frequencies[i];
+        }
+    }
+    
+    double diffSquared = 0;
+    double worstSquared = 0;
+    double maxHeight = super_gaussian(totalMean, totalMean, goodSolutionStdev * 0.8, 2) ;
+    
+    for (int i = 0; i < frequencies.size(); i++)
+    {
+        double length = wavelengths[i];
+        double expected = super_gaussian(length, totalMean, goodSolutionStdev * 0.8, 2) * (double)maxFrequency / maxHeight;
+        
+    //    logged << "expected: " << expected << ", frequency: " << frequencies[i] << std::endl;
+        
+        diffSquared += pow(expected - frequencies[i], 2);
+        worstSquared += pow(expected, 2);
+    }
+    
+    diffSquared = sqrt(diffSquared);
+    worstSquared = sqrt(worstSquared);
+    
     std::sort(frequencies.begin(), frequencies.end(), greater());
     
     double highSum = 0;
@@ -1607,25 +1597,31 @@ bool IOMRefiner::isGoodSolution()
     if (lastStdev < goodSolutionStdev)
     {
         good = true;
-        details << "Standard deviation is sufficiently low (" << lastStdev << " vs " << goodSolutionStdev << ")" << std::endl;
+        details << "(" << getImage()->getFilename() << ") Standard deviation is sufficiently low (" << lastStdev << " vs " << goodSolutionStdev << ")" << std::endl;
     }
 
     if (highSum > stdevLow * goodSolutionSumRatio)
     {
         good = true;
-        details << "Sum ratio is sufficiently high (" << highSum << " vs " << stdevLow << ")" << std::endl;
+        details << "(" << getImage()->getFilename() << ") Sum ratio is sufficiently high (" << highSum << " vs " << stdevLow << ")" << std::endl;
     }
     
-    if (highSum <= 5)
+  /*  if (highSum <= 5)
     {
-        details << "However, high sum not high enough (" << highSum << ")" << std::endl;
+        details << "(" << getImage()->getFilename() << ") However, high sum not high enough (" << highSum << ")" << std::endl;
         good = false;
     }
-    
+    */
     if (frequencies[0] > goodSolutionHighestPeak)
     {
-        details << "Highest peak is high enough (" << frequencies[0] << " vs " << goodSolutionHighestPeak << ")" << std::endl;
+        details << "(" << getImage()->getFilename() << ") Highest peak is high enough (" << frequencies[0] << " vs " << goodSolutionHighestPeak << ")" << std::endl;
         good = true;
+    }
+    
+    if (frequencies[0] < badSolutionHighestPeak)
+    {
+        details << "(" << getImage()->getFilename() << ") Highest peak is too low (" << frequencies[0] << " vs " << badSolutionHighestPeak << ")" << std::endl;
+        good = false;
     }
     
 //    if (lastScore < 3)
@@ -1633,15 +1629,17 @@ bool IOMRefiner::isGoodSolution()
     
     if (getTotalReflections() < minimumReflections)
     {
-        details << "However, not enough reflections (" << getTotalReflections() << " vs " << minimumReflections << ")" << std::endl;
+        details << "(" << getImage()->getFilename() << ") However, not enough reflections (" << getTotalReflections() << " vs " << minimumReflections << ")" << std::endl;
         good = false;
     }
     
     if (lastStdev > badSolutionStdev)
     {
         good = false;
-        details << "However, standard deviation too high (" << lastStdev << " vs " << badSolutionStdev << ")" << std::endl;
+        details << "(" << getImage()->getFilename() << ") However, standard deviation too high (" << lastStdev << " vs " << badSolutionStdev << ")" << std::endl;
     }
+    
+    details << "Decision: " << (good ? "keep." : "throw away.") << std::endl;
     
     Logger::mainLogger->addStream(&details, LogLevelNormal);
     
@@ -1651,23 +1649,16 @@ bool IOMRefiner::isGoodSolution()
 void IOMRefiner::calculateOnce()
 {
     calculateNearbyMillers(true);
-    setSearch(searchSize);
     checkAllMillers(maxResolution, testBandwidth);
     
     vector<double> wavelengths;
     vector<int> frequencies;
     
-    double mean = 0;
-    double stdev = 0;
-    
     getWavelengthHistogram(wavelengths, frequencies, LogLevelDetailed, 0);
 }
 
-MtzPtr IOMRefiner::newMtz(int index)
+void IOMRefiner::showHistogram(bool silent)
 {
-    calculateNearbyMillers(true);
-    setSearch(searchSize);
-    checkAllMillers(maxResolution, testBandwidth);
     vector<double> wavelengths;
     vector<int> frequencies;
     
@@ -1675,9 +1666,24 @@ MtzPtr IOMRefiner::newMtz(int index)
     double stdev = 0;
     double theScore = 0;
     
-  //  getWavelengthHistogram(wavelengths, frequencies, LogLevelNormal, 1);
-  //  getWavelengthHistogram(wavelengths, frequencies, LogLevelNormal, 2);
-    getWavelengthHistogram(wavelengths, frequencies, LogLevelNormal, 0);
+    getWavelengthHistogram(wavelengths, frequencies, silent ? LogLevelDebug : LogLevelNormal, 0);
+    gaussian_fit(wavelengths, frequencies, (int)wavelengths.size(), &mean, &stdev,
+                 &theScore, true);
+}
+
+MtzPtr IOMRefiner::newMtz(int index, bool silent)
+{
+    calculateNearbyMillers(true);
+    checkAllMillers(maxResolution, testBandwidth);
+    vector<double> wavelengths;
+    vector<int> frequencies;
+    
+    
+    double mean = 0;
+    double stdev = 0;
+    double theScore = 0;
+    
+    getWavelengthHistogram(wavelengths, frequencies, silent ? LogLevelDebug : LogLevelNormal, 0);
     gaussian_fit(wavelengths, frequencies, (int)wavelengths.size(), &mean, &stdev,
                  &theScore, true);
     
@@ -1732,8 +1738,9 @@ MtzPtr IOMRefiner::newMtz(int index)
         else
         {
             Reflection *reflection = new Reflection();
-            reflection->setSpaceGroup(spaceGroup, spgType, asymmetricUnit);
+            reflection->setSpaceGroup(spaceGroup->spg_num);
             reflection->addMiller(miller);
+            reflection->setUnitCellDouble(&unitCell[0]);
             reflection->calculateResolution(&*mtz);
             miller->setParent(reflection);
             mtz->addReflection(reflection);
@@ -1749,7 +1756,7 @@ MtzPtr IOMRefiner::newMtz(int index)
         mtz->cutToResolutionWithSigma(cutoff);
     
     std::string imgFilename = "img-" + getImage()->filenameRoot() + "_" + i_to_str(index) + ".mtz";
-    mtz->writeToFile(imgFilename, true, true);
+    mtz->writeToFile(imgFilename, true, true, false, true);
     mtz->writeToDat();
 
     nearbyMillers.clear();
@@ -1783,7 +1790,7 @@ void IOMRefiner::sendLog(LogLevel priority)
 
 std::string IOMRefiner::refinementSummaryHeader()
 {
-    return "Filename\tRefl num\tScore\tHoriz rot\tVert rot\tBeam rot\tStdev\tWavelength\tDistance\tUnitCellA\tUnitCellB\tUnitCellC";
+    return "Filename\tRefl num\tScore\tHoriz rot\tVert rot\tBeam rot\tStdev\tWavelength\tDistance\tUnitCellA\tUnitCellB\tUnitCellC\tAlpha\tBeta\tGamma";
 }
 
 std::string IOMRefiner::refinementSummary()
@@ -1795,7 +1802,7 @@ std::string IOMRefiner::refinementSummary()
     double distance = getDetectorDistance();
     MatrixPtr matrix = getMatrix();
     double *lengths = new double[3];
-
+    
     for (int i = 0; i < 3; i++)
     {
         lengths[i] = 0;
@@ -1806,7 +1813,9 @@ std::string IOMRefiner::refinementSummary()
     std::ostringstream summary;
     
     summary << filename << "\t" << totalReflections << "\t" << lastScore << "\t"
-    << bestHRot << "\t" << bestKRot << "\t" << bestLRot << "\t" << lastStdev << "\t" << wavelength << "\t" << distance << "\t" << lengths[0] << "\t" << lengths[1] << "\t" << lengths[2];
+    << bestHRot << "\t" << bestKRot << "\t" << bestLRot << "\t" << lastStdev << "\t" << wavelength << "\t" << distance << "\t" << lengths[0] << "\t" << lengths[1] << "\t" << lengths[2] << "\t" << unitCell[3] << "\t" << unitCell[4] << "\t" << unitCell[5];
+
+    delete [] lengths;
     
     return summary.str();
 }
