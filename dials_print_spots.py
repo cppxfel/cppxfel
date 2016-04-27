@@ -7,10 +7,9 @@ def printSpots(filenames):
 		strongPickle = pickle.load(fin)
 		output = StringIO.StringIO()
 
-		for spot in strongPickle:
-			xyzobs = spot['xyzobs.px.value']
-			x = xyzobs[0]
-			y = xyzobs[1]
+		for spot in strongPickle['xyzobs.px.value']:
+			x = spot[0]
+			y = spot[1]
 			print >>output, str(x) + "\t" + str(y)
 	
 		new_name = filename.replace('pickle', 'list')
