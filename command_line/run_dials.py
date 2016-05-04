@@ -7,11 +7,36 @@ import os
 import scitbx_array_family_flex_ext
 from subprocess import call
 import StringIO
-from cppxfel import command_line_parser
+from cppxfel.command_line_parser import CommandLineParser
+
+parser = CommandLineParser()
+parser.setup()
 
 import_phil = "import.options"
 find_spots_phil = "find_spots.options"
 index_phil = "index.options"
+
+skip = 0
+max = 0
+index = True
+
+try:
+	shouldIndex = parser.valueForKey('index')
+	if 'n' in shouldIndex:
+		index = False
+		print "Will not index"
+except:
+	pass
+
+try:
+	skip = int(parser.valueForKey('skip'))
+except:
+	pass
+
+try:
+	max = int(parser.valueForKey('max'))
+except:
+	pass
 
 if len(sys.argv) == 1:
 	print "Script to run DIALS on individual still shots (XFEL).\n"
@@ -38,6 +63,7 @@ Returns: None
 
 """
 def indexImages(images):
+	global start, end
 	jsons = []
 
 	import_options = ""
@@ -95,6 +121,9 @@ def indexImages(images):
 			os.system(command)
 		else:
 			print "Skip spotfinding for " + rootname + ", already present"
+	
+		if not index:
+			continue
 	
 		command = "dials.index " + rootname + ".json _" + rootname + "_strong.pickle "
 		command += " output.reflections=_" + rootname + "_indexed.pickle "
@@ -183,23 +212,39 @@ def matrixForFilename(filename, output):
 
 output = StringIO.StringIO()
 
-thread_count = int(os.getenv('NSLOTS', 4))
-image_num = len(sys.argv) - 1
-images_per_thread = image_num / thread_count
-
-print "Total images: ", image_num
-
 threads = []
+
+start = 0
+end = len(parser.getLoose())
+
+if (skip > 0):
+	start = skip
+
+if (max > 0):
+	end = start + max
+
+if start > len(parser.getLoose()):
+	print "Start position is beyond end of supplied images."
+	exit()
+
+if end > len(parser.getLoose()):
+	end = len(parser.getLoose())
+	
+myImages = parser.getLoose()[start:end]
+
+thread_count = int(os.getenv('NSLOTS', 4))
+image_num = len(myImages)
+print "Total images:", image_num
+
+images_per_thread = image_num / thread_count
 
 for i in range(0, thread_count):
 		min = int(i * images_per_thread)
 		max = int((i + 1) * images_per_thread)
 	
-		print "Processing", min, "to", max, " images"
-		images = sys.argv[min + 1:max + 1]
-		print len(images), "images."
+		print max - min, "images on this thread."
 
-		thread = Process(target=indexImages, args=(images, ))
+		thread = Process(target=indexImages, args=(myImages[min:max], ))
 		threads.append(thread)
 		thread.start()
 
