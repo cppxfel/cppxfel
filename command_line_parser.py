@@ -12,7 +12,7 @@ class CommandLineParser:
 			key_value = arg.split("=")
 		
 			if (len(key_value) < 2):
-				loose.append(key_value[0])
+				self.loose.append(key_value[0])
 				continue
 			else:
 				values = key_value[1].split(",")
@@ -30,3 +30,7 @@ class CommandLineParser:
 			
 	def empty(self):
 		return (len(self.dict) == 0)
+	
+	def getLoose(self):
+		return self.loose
+
