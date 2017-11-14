@@ -7,11 +7,11 @@ from cppxfel_ext import *
 
 class Parser:
 
-        def __init__(self, commandFile):
-                self.parser = ext.cppParser(commandFile)
+    def __init__(self, commandFile):
+        self.parser = ext.cppParser(commandFile)
 
 # file provided under keyword ORIENTATION_MATRIX_LIST
-        def loadImagesFromFile(self):
+    def loadImagesFromFile(self):
 
 
 #       def loadImages(self, experimentList):
@@ -38,5 +38,5 @@ class Parser:
 #                       rotation = list(experiment.crystal.get_U().as_mat3())
 #                       self.parser.addMatrixToLastImage(unit_cell, rotation)
 
-        def integrate(self):
-                self.parser.integrate()
+    def integrate(self):
+        self.parser.integrate()

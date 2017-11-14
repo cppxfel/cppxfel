@@ -30,10 +30,10 @@ Returns: filename stem.
 
 """
 def rootnameStem(filename):
-        return filename.replace("_experiments.json", "").replace("_strong.list", "")
+    return filename.replace("_experiments.json", "").replace("_strong.list", "")
 
 def baseName(filename):
-        return os.path.splitext(filename)[0]
+    return os.path.splitext(filename)[0]
 
 """
 Function prints matrices from DIALS experiment objects separating
@@ -49,42 +49,42 @@ Returns: None
 
 """
 def printExperiments(experiments, filename, output):
-        rootname_stem = rootnameStem(filename)
+    rootname_stem = rootnameStem(filename)
 
-        global distance, centre, wavelength, pixelSize, spacegroup, unit_cell_dimensions
+    global distance, centre, wavelength, pixelSize, spacegroup, unit_cell_dimensions
 
-        if len(experiments):
-                beam = experiments[0].beam
-                detector = experiments[0].detector[0]
-                distance = detector.get_distance()
-                centre = detector.get_ray_intersection_px(beam.get_s0())
-                wavelength = beam.get_wavelength()
+    if len(experiments):
+        beam = experiments[0].beam
+        detector = experiments[0].detector[0]
+        distance = detector.get_distance()
+        centre = detector.get_ray_intersection_px(beam.get_s0())
+        wavelength = beam.get_wavelength()
 
-                pixelSize = detector.get_pixel_size()
+        pixelSize = detector.get_pixel_size()
 
-                print >> output, "wavelength", wavelength
-                print >> output, "distance", distance
-                print >> output, "centre", centre[0], centre[1]
+        print >> output, "wavelength", wavelength
+        print >> output, "distance", distance
+        print >> output, "centre", centre[0], centre[1]
 
-        for experiment in experiments:
-                spacegroup = experiment.crystal.get_space_group().type().number()
-                unit_cell_dimensions = experiment.crystal.get_unit_cell().parameters()
-                unit_cell = experiment.crystal.get_B()
-                rotation = experiment.crystal.get_U()
+    for experiment in experiments:
+        spacegroup = experiment.crystal.get_space_group().type().number()
+        unit_cell_dimensions = experiment.crystal.get_unit_cell().parameters()
+        unit_cell = experiment.crystal.get_B()
+        rotation = experiment.crystal.get_U()
 
-                print >>output, "unitcell",
+        print >>output, "unitcell",
 
-                for component in unit_cell:
-                        print >>output, component,
+        for component in unit_cell:
+            print >>output, component,
 
-                print >> output, ""
+        print >> output, ""
 
-                print >>output, "rotation",
+        print >>output, "rotation",
 
-                for component in rotation:
-                        print >>output, component,
+        for component in rotation:
+            print >>output, component,
 
-                print >> output, ""
+        print >> output, ""
 
 
 """
@@ -99,23 +99,23 @@ returns: None
 
 """
 def matrixForFilename(filename, output):
-        arguments = []
-        arguments.append(filename)
+    arguments = []
+    arguments.append(filename)
 
-        from dials.util.options import OptionParser
-        from dials.util.options import flatten_experiments
-        from libtbx.utils import Abort
+    from dials.util.options import OptionParser
+    from dials.util.options import flatten_experiments
+    from libtbx.utils import Abort
 
-        parser = OptionParser(
-        read_experiments=True,
-        check_format=False)
+    parser = OptionParser(
+    read_experiments=True,
+    check_format=False)
 
-        params, options = parser.parse_args(args=arguments, show_diff_phil=True)
-        experiments = flatten_experiments(params.input.experiments)
+    params, options = parser.parse_args(args=arguments, show_diff_phil=True)
+    experiments = flatten_experiments(params.input.experiments)
 
-        path = experiments[0].imageset.get_path(0)
-        print "Image", path, "has", len(experiments), "experiments."
-        printExperiments(experiments, filename, output)
+    path = experiments[0].imageset.get_path(0)
+    print "Image", path, "has", len(experiments), "experiments."
+    printExperiments(experiments, filename, output)
 
 
 """
@@ -126,92 +126,92 @@ arg: path to an individual file.
 
 """
 def printData(path):
-        global output
-        baseFile = baseName(path)
-        spotPickleName = "_" + baseFile + "_strong.pickle"
-        spotListName = spotPickleName.replace('pickle', 'list')
-        experimentsJson = "_" + baseFile + "_experiments.json"
-        from cppxfel import dials_print_spots
+    global output
+    baseFile = baseName(path)
+    spotPickleName = "_" + baseFile + "_strong.pickle"
+    spotListName = spotPickleName.replace('pickle', 'list')
+    experimentsJson = "_" + baseFile + "_experiments.json"
+    from cppxfel import dials_print_spots
 
-        print "Finding data for", path
+    print "Finding data for", path
 
-        if (os.path.isfile(path)):
-                print >> output, "image", baseFile
+    if (os.path.isfile(path)):
+        print >> output, "image", baseFile
 
-        if os.path.isfile(spotPickleName):
-                print "Found spots."
-                dials_print_spots.printSpots([spotPickleName])
+    if os.path.isfile(spotPickleName):
+        print "Found spots."
+        dials_print_spots.printSpots([spotPickleName])
 
-        if (os.path.isfile(spotListName)):
-                print >> output, "spots", spotListName
-        else:
-                print >> output, "spots find"
+    if (os.path.isfile(spotListName)):
+        print >> output, "spots", spotListName
+    else:
+        print >> output, "spots find"
 
-        if os.path.isfile(experimentsJson):
-                print "Found DIALS indexing solutions."
-                matrixForFilename(experimentsJson, output)
+    if os.path.isfile(experimentsJson):
+        print "Found DIALS indexing solutions."
+        matrixForFilename(experimentsJson, output)
 
 def dumpPanels(images):
-        import pickle
-        global panels
-        global distance, wavelength, centre, pixelSize
-        print "Attempting to dump panel file"
-        # i is an integer specifying the image counter
-        i = 0
-        successful = False
+    import pickle
+    global panels
+    global distance, wavelength, centre, pixelSize
+    print "Attempting to dump panel file"
+    # i is an integer specifying the image counter
+    i = 0
+    successful = False
 
-        while not successful:
-                try:
-                        f = open(images[i], 'rb')
-                        x = pickle.load(f)
-                except Exception as e:
-                        print Exception
-                        i += 1
+    while not successful:
+        try:
+            f = open(images[i], 'rb')
+            x = pickle.load(f)
+        except Exception as e:
+            print Exception
+            i += 1
 
-                        if (i > len(images)):
-                                break
+            if (i > len(images)):
+                break
 
-                        continue
+            continue
 
-                # now we dump from this pickle file and stop the while loop
+        # now we dump from this pickle file and stop the while loop
 
-                successful = True
+        successful = True
 
-                try:
-                        panels = x['ACTIVE_AREAS']
-                        distance = x['DISTANCE']
-                        wavelength = x['WAVELENGTH']
-                        pixelSize = (x['PIXEL_SIZE'], 0)
-                        centre = (x['BEAM_CENTER_X'] / pixelSize[0], x['BEAM_CENTER_Y'] / pixelSize[0])
-                except Exception as e:
-                        print Exception
-                        break
+        try:
+            panels = x['ACTIVE_AREAS']
+            distance = x['DISTANCE']
+            wavelength = x['WAVELENGTH']
+            pixelSize = (x['PIXEL_SIZE'], 0)
+            centre = (x['BEAM_CENTER_X'] / pixelSize[0], x['BEAM_CENTER_Y'] / pixelSize[0])
+        except Exception as e:
+            print Exception
+            break
 
-                # TODO: find distance, wavelength, beam centre from first file.
+        # TODO: find distance, wavelength, beam centre from first file.
 
-                panelTxt = StringIO.StringIO()
+        panelTxt = StringIO.StringIO()
 
-                for i in range(0, len(panels), 4):
-                        print >> panelTxt, "PANEL",
-                        print >>panelTxt, panels[i + 1], panels[i + 0], panels[i + 3], panels[i + 2]
+        for i in range(0, len(panels), 4):
+            print >> panelTxt, "PANEL",
+            print >>panelTxt, panels[i + 1], panels[i + 0], panels[i + 3], panels[i + 2]
 
-                outputFilename = "panels.txt"
-                file = open(outputFilename, 'w')
-                print >>file, panelTxt.getvalue()
-                file.close()
-                return
-
-        # If we got here, a pickle file was not found.
-
-        print "No pickle files found. Please check your panels.txt file."
         outputFilename = "panels.txt"
         file = open(outputFilename, 'w')
-        print >>file, "# Enable for basic CSPAD detector."
-        print >>file, "#PANEL 0 0 1765 1765"
-        print >>file, "# Enable for Rayonix detector."
-        print >>file, "#PANEL 0 0 1920 1920"
+        print >>file, panelTxt.getvalue()
         file.close()
         return
+
+    # If we got here, a pickle file was not found.
+
+    print "No pickle files found. Please check your panels.txt file."
+    outputFilename = "panels.txt"
+    file = open(outputFilename, 'w')
+    print >>file, "# Enable for basic CSPAD detector."
+    print >>file, "#PANEL 0 0 1765 1765"
+    print >>file, "# Enable for Rayonix detector."
+    print >>file, "#PANEL 0 0 1920 1920"
+    file.close()
+    return
 
 """
         Dumps images specified in the imagePath list from
@@ -220,34 +220,34 @@ def dumpPanels(images):
         arg imagePaths: list of strings.
 """
 def dumpImages(imagePaths):
-        for path in imagePaths:
-                print "Dumping image:", path
-                rootname = splitext(basename(path))[0]
-                imageName = rootname + '.img'
+    for path in imagePaths:
+        print "Dumping image:", path
+        rootname = splitext(basename(path))[0]
+        imageName = rootname + '.img'
 
-                if (os.path.exists(imageName)):
-                        print "Image", imageName, "already dumped - skipping."
-                        continue
+        if (os.path.exists(imageName)):
+            print "Image", imageName, "already dumped - skipping."
+            continue
 
-                ext = splitext(basename(path))[1]
+        ext = splitext(basename(path))[1]
 
-                if not ext == ".pickle":
-                        print "Warning: not a pickle file. Converting to pickle first."
-                        command = "cxi.image2pickle " + path
-                        os.system(command)
+        if not ext == ".pickle":
+            print "Warning: not a pickle file. Converting to pickle first."
+            command = "cxi.image2pickle " + path
+            os.system(command)
 
-                db = dxtbx.load(rootname + ".pickle").get_detectorbase()
-                data = db.get_raw_data()
+        db = dxtbx.load(rootname + ".pickle").get_detectorbase()
+        data = db.get_raw_data()
 
-                data_array = array.array('i')
+        data_array = array.array('i')
 
-                for i in range(0, len(data)):
-                        data_array.append(data[i])
+        for i in range(0, len(data)):
+            data_array.append(data[i])
 
-                string = data_array.tostring()
-                newFile = open(imageName, 'wb')
-                newFile.write(string)
-                newFile.close()
+        string = data_array.tostring()
+        newFile = open(imageName, 'wb')
+        newFile.write(string)
+        newFile.close()
 
 # **********************************
 # ***** START OF EXECUTED CODE *****
@@ -257,17 +257,17 @@ def dumpImages(imagePaths):
 paths = sys.argv[1:]
 
 if (len(paths) == 0):
-        print "Please specify the images you want to dump, e.g.:"
-        print "\tcppxfel.input_gen shot*.pickle"
+    print "Please specify the images you want to dump, e.g.:"
+    print "\tcppxfel.input_gen shot*.pickle"
 #       print "\tcppxfel.input_gen shot*.cbf"
-        exit()
+    exit()
 
 # Start the output stringIO which will be written to matrices.dat
 output = StringIO.StringIO()
 
 # For each image, print the data to the output stringIO.
 for path in paths:
-        printData(path)
+    printData(path)
 
 print "Written data to matrices.dat file."
 
@@ -286,21 +286,21 @@ image_num = len(paths)
 images_per_thread = image_num / thread_count
 
 if (len(paths) == 0):
-        print "No images with matrices provided."
-        exit()
+    print "No images with matrices provided."
+    exit()
 
 print "Total images ready for dumping: ", image_num
 
 for i in range(0, thread_count):
-        min = int(i * images_per_thread)
-        max = int((i + 1) * images_per_thread)
+    min = int(i * images_per_thread)
+    max = int((i + 1) * images_per_thread)
 
-        print "Dumping", min, "to", max, " images on this thread"
-        images = paths[min:max]
+    print "Dumping", min, "to", max, " images on this thread"
+    images = paths[min:max]
 
-        thread = Process(target=dumpImages, args=(images, ))
-        threads.append(thread)
-        thread.start()
+    thread = Process(target=dumpImages, args=(images, ))
+    threads.append(thread)
+    thread.start()
 
 print "Creating input files"
 
@@ -313,9 +313,9 @@ print >> indexTxt, "# Be sure to set the UNIT_CELL and SPACE_GROUP for indexing.
 print >> indexTxt, "SPACE_GROUP", spacegroup
 
 if len(unit_cell_dimensions):
-        print >> indexTxt, "UNIT_CELL",
-        for dimension in unit_cell_dimensions:
-                print >> indexTxt, dimension,
+    print >> indexTxt, "UNIT_CELL",
+    for dimension in unit_cell_dimensions:
+        print >> indexTxt, dimension,
 print >> indexTxt, "\n"
 
 print >> indexTxt, "MM_PER_PIXEL", pixelSize[0]
@@ -355,11 +355,11 @@ print >> indexTxt, "INDEX"
 outputFilename = "index.txt"
 
 if not os.path.isfile(outputFilename):
-        outputFile = open(outputFilename, 'w')
-        print >>outputFile, indexTxt.getvalue()
-        outputFile.close()
-        print "New template input file index.txt"
-        print "Please check your target unit cell and space group"
+    outputFile = open(outputFilename, 'w')
+    print >>outputFile, indexTxt.getvalue()
+    outputFile.close()
+    print "New template input file index.txt"
+    print "Please check your target unit cell and space group"
 
 
 integrateTxt = StringIO.StringIO()
@@ -375,7 +375,7 @@ print >> integrateTxt, "SPACE_GROUP", spacegroup
 
 print >> integrateTxt, "UNIT_CELL",
 for dimension in unit_cell_dimensions:
-        print >> integrateTxt, dimension,
+    print >> integrateTxt, dimension,
 print >> integrateTxt
 print >> integrateTxt, "FIX_UNIT_CELL ON\n"
 print >> integrateTxt, "MM_PER_PIXEL", pixelSize[0]
@@ -401,11 +401,11 @@ print >> integrateTxt, "INTEGRATE"
 outputFilename = "integrate.txt"
 
 if not os.path.isfile(outputFilename):
-        outputFile = open(outputFilename, 'w')
-        print >>outputFile, integrateTxt.getvalue()
-        outputFile.close()
-        print "New template input file integrate.txt"
-        print "Please check your target unit cell and space group"
+    outputFile = open(outputFilename, 'w')
+    print >>outputFile, integrateTxt.getvalue()
+    outputFile.close()
+    print "New template input file integrate.txt"
+    print "Please check your target unit cell and space group"
 
 refineTxt = StringIO.StringIO()
 
@@ -419,10 +419,10 @@ print >> refineTxt, "REFINE_PARTIALITY"
 outputFilename = "refine.txt"
 
 if not os.path.isfile(outputFilename):
-        outputFile = open(outputFilename, 'w')
-        print >>outputFile, refineTxt.getvalue()
-        outputFile.close()
-        print "New template input file refine.txt"
+    outputFile = open(outputFilename, 'w')
+    print >>outputFile, refineTxt.getvalue()
+    outputFile.close()
+    print "New template input file refine.txt"
 
 
 mergeTxt = StringIO.StringIO()
@@ -440,13 +440,13 @@ print >> mergeTxt, "MERGE"
 outputFilename = "merge.txt"
 
 if not os.path.isfile(outputFilename):
-        outputFile = open(outputFilename, 'w')
-        print >>outputFile, mergeTxt.getvalue()
-        outputFile.close()
-        print "New template input file merge.txt"
+    outputFile = open(outputFilename, 'w')
+    print >>outputFile, mergeTxt.getvalue()
+    outputFile.close()
+    print "New template input file merge.txt"
 
 if distance == 0:
-        print "You MUST change the experimental parameters in index.txt and integrate.txt"
+    print "You MUST change the experimental parameters in index.txt and integrate.txt"
 
 
 print "Now what?"
