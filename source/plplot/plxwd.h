@@ -30,7 +30,7 @@
 
 // Set constants for dealing with colormap.  In brief:
 //
-// ccmap		When set, turns on custom color map
+// ccmap                When set, turns on custom color map
 //
 // See Init_CustomCmap() and  Init_DefaultCmap() for more info.
 // Set ccmap at your own risk -- still under development.

@@ -13,13 +13,13 @@
 class Wiki
 {
 private:
-	std::string contents;
-	std::string filename;
+        std::string contents;
+        std::string filename;
 public:
-	Wiki();
-	Wiki(std::string filename);
-	void process();
-	virtual ~Wiki();
+        Wiki();
+        Wiki(std::string filename);
+        void process();
+        virtual ~Wiki();
 };
 
 #endif /* WIKI_H_ */

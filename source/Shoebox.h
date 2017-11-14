@@ -22,13 +22,13 @@ class Shoebox : LoggableObject
 private:
     boost::weak_ptr<Miller> miller;
     Box shoebox;
-    
+
     double mmPerPixel;
     double detectorDistance;
-    
+
     double pixelLeak;
     double bandwidthMultiplier;
-    
+
     bool even;
     void putBoxOnPaddedBackground(Box &smallBox, Box &newShoebox);
     void putBoxOnBackground(Box &smallBox, Box &newShoebox);
@@ -38,29 +38,29 @@ private:
 public:
     Shoebox(MillerPtr parent);
     ~Shoebox();
-    
+
     void printShoebox();
     void simpleShoebox(int foregroundLength, int neitherLength, int backgroundLength, bool shoeboxEven);
     void complexShoebox(double wavelength, double bandwidth, double radius);
     void clearShoebox();
     void sideLengths(int *slowSide, int *fastSide);
     void centre(int *centreX, int *centreY);
-    
+
     vector<double>& operator[](std::size_t index)
     {
         return shoebox[index];
     }
-    
+
     MillerPtr getMiller()
     {
         return miller.lock();
     }
-    
+
     void setMiller(MillerPtr miller)
     {
         this->miller = miller;
     }
-    
+
     bool isEven()
     {
         return even;

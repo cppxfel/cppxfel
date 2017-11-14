@@ -11,10 +11,10 @@ class Lbfgs_Scaling
 {
 
 public:
-	Lbfgs_Scaling(char **filenames, int filenum);
-	~Lbfgs_Scaling(void);
-	void run(void);
-	Lbfgs_Scaling(vector<MtzPtr>mtzs);
+        Lbfgs_Scaling(char **filenames, int filenum);
+        ~Lbfgs_Scaling(void);
+        void run(void);
+        Lbfgs_Scaling(vector<MtzPtr>mtzs);
 };
 
 //#endif

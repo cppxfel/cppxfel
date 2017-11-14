@@ -27,29 +27,29 @@ private:
     FreeMillerLibrary(std::string filename, double maxResolution);
 
     static FreeMillerLibrary library;
-    
+
     int freeIndexCount()
     {
         return (int)freeIndices.size();
     }
-    
+
 public:
     static void setup();
-    
+
     void printSummary();
-    
+
     bool isCertainMillerFree(Miller *miller);
-    
+
     static bool isMillerFree(Miller *miller)
     {
         return library.isCertainMillerFree(miller);
     }
-    
+
     static bool active()
     {
         return (library.freeIndexCount() > 0);
     }
-    
+
     FreeMillerLibrary() {};
 };
 

@@ -75,7 +75,7 @@
 // Add others here as needed.
 
 //--------------------------------------------------------------------------
-//	Configuration settings
+//      Configuration settings
 //
 // Some of the macros set during configuration are described here.
 //
@@ -361,28 +361,28 @@ int plsnscanf( const char *buffer, int n, const char *format, ... );
 //--------------------------------------------------------------------------
 // The following environment variables are defined:
 //
-//	PLPLOT_BIN      # where to find executables
-//	PLPLOT_LIB      # where to find library files (fonts, maps, etc)
-//	PLPLOT_TCL      # where to find tcl scripts
+//      PLPLOT_BIN      # where to find executables
+//      PLPLOT_LIB      # where to find library files (fonts, maps, etc)
+//      PLPLOT_TCL      # where to find tcl scripts
 //
-//	PLPLOT_HOME     # basename of plplot hierarchy
+//      PLPLOT_HOME     # basename of plplot hierarchy
 //
 // search order:
-//	1)	the most specific possible locators, one of
-//			$(PLPLOT_BIN)
-//			$(PLPLOT_LIB)
-//			$(PLPLOT_TCL)
-//		as appropriate
+//      1)      the most specific possible locators, one of
+//                      $(PLPLOT_BIN)
+//                      $(PLPLOT_LIB)
+//                      $(PLPLOT_TCL)
+//              as appropriate
 //
-//	2)	the current directory
+//      2)      the current directory
 //
-//	3)	one of  $(PLPLOT_HOME)/bin
-//			$(PLPLOT_HOME)/lib
-//			$(PLPLOT_HOME)/tcl
-//		as appropriate
+//      3)      one of  $(PLPLOT_HOME)/bin
+//                      $(PLPLOT_HOME)/lib
+//                      $(PLPLOT_HOME)/tcl
+//              as appropriate
 //
-//	4)	as appropriate, the compile-time (Makefile)
-//		BIN_DIR, LIB_DIR, TCL_DIR
+//      4)      as appropriate, the compile-time (Makefile)
+//              BIN_DIR, LIB_DIR, TCL_DIR
 //
 //  8 Jun 1994  mj olesen (olesen@weber.me.queensu.ca)
 //
@@ -430,7 +430,7 @@ extern Hershey_to_Unicode_table hershey_to_unicode_lookup_table[];
 extern const char plP_greek_mnemonic[];
 
 //--------------------------------------------------------------------------
-//		Function Prototypes
+//              Function Prototypes
 //
 // These typically should not be called directly by the user.
 //--------------------------------------------------------------------------

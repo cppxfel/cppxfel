@@ -18,54 +18,54 @@ class FileParser
 {
 protected:
     FileParser(void);
-	ParserMap parserMap;
-	static ParametersMap parameters;
+        ParserMap parserMap;
+        static ParametersMap parameters;
 
-	static void simpleFloat(ParametersMap *map, std::string command,
-			std::string rest);
-	static void simpleBool(ParametersMap *map, std::string command,
-			std::string rest);
-	static void simpleString(ParametersMap *map, std::string command,
-			std::string rest);
-	static void simpleInt(ParametersMap *map, std::string command,
-			std::string rest);
-	static void doubleVector(ParametersMap *map, std::string command,
-			std::string rest);
-	static void intVector(ParametersMap *map, std::string command,
-			std::string rest);
+        static void simpleFloat(ParametersMap *map, std::string command,
+                        std::string rest);
+        static void simpleBool(ParametersMap *map, std::string command,
+                        std::string rest);
+        static void simpleString(ParametersMap *map, std::string command,
+                        std::string rest);
+        static void simpleInt(ParametersMap *map, std::string command,
+                        std::string rest);
+        static void doubleVector(ParametersMap *map, std::string command,
+                        std::string rest);
+        static void intVector(ParametersMap *map, std::string command,
+                        std::string rest);
 
     std::vector<std::string> extras;
     static char splitCharMajor;
     static char splitCharMinor;
     static int threadsFound;
-	std::string filename;
-	void generateFunctionList();
-	ParserFunction splitLine(std::string line, std::string &command, std::string &rest);
-	bool checkSpaces(std::string line);
+        std::string filename;
+        void generateFunctionList();
+        ParserFunction splitLine(std::string line, std::string &command, std::string &rest);
+        bool checkSpaces(std::string line);
     static std::ostringstream log;
 public:
 
     static int getMaxThreads();
-    
-	template<typename Value>
+
+        template<typename Value>
     static void setKey(std::string key, Value newValue)
     {
         ParameterVariant container = newValue;
         parameters[key] = container;
     }
-    
-    template<typename Value>
-	static Value getKey(std::string key, Value defaultValue)
-	{
-        if (hasKey(key))
-		{
-			ParameterVariant container = parameters[key];
-			ParameterVariant container2 = defaultValue;
 
-			if (container.which() != container2.which())
-			{
-				log << "Incorrect type for " << key << std::endl;
-			}
+    template<typename Value>
+        static Value getKey(std::string key, Value defaultValue)
+        {
+        if (hasKey(key))
+                {
+                        ParameterVariant container = parameters[key];
+                        ParameterVariant container2 = defaultValue;
+
+                        if (container.which() != container2.which())
+                        {
+                                log << "Incorrect type for " << key << std::endl;
+                        }
 
             try
             {
@@ -76,19 +76,19 @@ public:
             {
                 std::cout << "Failed to get value from array" << std::endl;
                 std::cout << "Key: " << key << std::endl;
-                
+
                 throw ex;
             }
-		}
-		else {
-			return defaultValue;
-		}
-	}
-	static bool hasKey(std::string key);
+                }
+                else {
+                        return defaultValue;
+                }
+        }
+        static bool hasKey(std::string key);
     FileParser(std::string filename, std::vector<std::string> someExtras = std::vector<std::string>());
-	virtual ~FileParser();
+        virtual ~FileParser();
     virtual void parseFromPython() { parse(true); };
-	virtual void parse(bool fromPython) {};
+        virtual void parse(bool fromPython) {};
 };
 
 #endif /* FILEPARSER_H_ */

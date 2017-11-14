@@ -47,7 +47,7 @@ protected:
     int nextImage;
     std::mutex indexMutex;
     bool modifyParameters();
-    
+
     void updateAllSpots();
     static double metrologyTarget(void *object);
     bool matrixSimilarToMatrix(MatrixPtr mat1, MatrixPtr mat2);
@@ -64,17 +64,17 @@ public:
     {
         return images[i];
     }
-    
+
     std::vector<MtzPtr> getMtzs()
     {
         return mtzs;
     }
-    
+
     void setMergeImages(std::vector<ImagePtr> otherImages)
     {
         mergeImages = otherImages;
     }
-    
+
     void combineLists();
     void indexingParameterAnalysis();
     void refineMetrology();

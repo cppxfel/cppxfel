@@ -23,7 +23,7 @@ typedef enum
     PlotHorizontalTickMark = '-',
     PlotVerticalTickMark = '\'',
     PlotBlank = ' ',
-    
+
 } PlotChar;
 
 typedef std::vector<double> Entry;
@@ -43,27 +43,27 @@ public:
     {
         va_list arguments;
         va_start(arguments, count);
-        
+
         for (int i = 0; i < count; i++)
         {
             std::string header = std::string(va_arg(arguments, char *));
             headers.push_back(header);
         }
-        
+
         va_end(arguments);
     }
-    
+
     void addEntry(int dummy, ...);
     void writeToFile(std::string filename);
     double valueForEntry(std::string header, int entry);
     void histogram(std::map<double, int> histogram);
     std::string plotColumns(int col1, int col2);
-    
+
     int entryCount()
     {
         return (int)entries.size();
     }
-    
+
     int headerCount()
     {
         return (int)headers.size();

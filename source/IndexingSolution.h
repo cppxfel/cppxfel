@@ -31,7 +31,7 @@ private:
     SpotVectorMatrixMap2D matrices;
     static UnitCellLatticePtr lattice;
     static std::mutex setupMutex;
-    
+
     bool vectorAgreesWithExistingVectors(SpotVectorPtr observedVector, SpotVectorPtr standardVector);
     static bool vectorMatchesVector(SpotVectorPtr firstVector, SpotVectorPtr secondVector, SpotVectorPtr *firstMatch, SpotVectorPtr *secondMatch);
     MatrixPtr createSolution(SpotVectorPtr firstVector, SpotVectorPtr secondVector, SpotVectorPtr firstStandard = SpotVectorPtr());
@@ -40,7 +40,7 @@ private:
     void addMatrix(SpotVectorPtr observedVector1, SpotVectorPtr observedVector2, MatrixPtr solution);
     bool vectorSolutionsAreCompatible(SpotVectorPtr observedVector, SpotVectorPtr standardVector);
     static bool spotVectorHasAnAppropriateDistance(SpotVectorPtr observedVector);
-    
+
     static double distanceTolerance;
     static double distanceToleranceReciprocal;
     static double angleTolerance;
@@ -56,16 +56,16 @@ private:
     static MatrixPtr unitCellMatrixInverse;
     static bool notSetup;
     static bool finishedSetup;
-    
+
     double averageTheta;
     double averagePhi;
     double averagePsi;
     int matrixCount;
-    
+
     IndexingSolution();
     IndexingSolution(SpotVectorPtr firstVector, SpotVectorPtr secondVector, SpotVectorPtr firstMatch, SpotVectorPtr secondMatch);
     IndexingSolution(SpotVectorMap firstMap, SpotVectorMap secondMap, SpotVectorMatrixMap2D matrixMap1, SpotVectorMatrixMap2D matrixMap2, MatrixPtr symOperator);
-    
+
 public:
     static std::vector<IndexingSolutionPtr> startingSolutionsForVectors(SpotVectorPtr firstVector, SpotVectorPtr secondVector);
     int extendFromSpotVectors(std::vector<SpotVectorPtr> *possibleVectors, int limit = 0);
@@ -83,40 +83,40 @@ public:
     bool spotsAreNotTooClose(SpotVectorPtr observedVector);
     static IndexingSolutionPtr startingSolutionsForThreeSpots(std::vector<SpotPtr> *spots, std::vector<SpotVectorPtr> *spotVectors);
     static void reset();
-    
+
     IndexingSolutionPtr copy();
     ~IndexingSolution();
-    
+
     static int standardVectorCount()
     {
         return lattice->standardVectorCount();
     }
-    
+
     static SpotVectorPtr standardVector(int i)
     {
         return lattice->standardVector(i);
     }
-    
+
     static int symOperatorCount()
     {
         return lattice->symOperatorCount();
     }
-    
+
     static MatrixPtr symOperator(int i)
     {
         return lattice->symOperator(i);
     }
-    
+
     int spotVectorCount()
     {
         return (int)spotVectors.size();
     }
-    
+
     bool wasSuccessful()
     {
         return spotVectors.size();
     }
-    
+
     static double getMinDistance();
 };
 

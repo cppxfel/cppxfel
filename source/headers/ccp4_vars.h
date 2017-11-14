@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -28,10 +28,10 @@
 
 #define MTZFILENAME "data::mtzfile::filename"
 #define MTZTITLE "data::mtzfile::title"
-#define MTZSPACEGROUP "data::mtzfile::spacegroup_num"        
+#define MTZSPACEGROUP "data::mtzfile::spacegroup_num"
 #define MTZNUMREFLS "data::mtzfile::num_reflections"
 #define MTZMNF "data::mtzfile::missing_number_flag"
-#define MTZSORTORDER "data::mtzfile::sort_order"          
+#define MTZSORTORDER "data::mtzfile::sort_order"
 
 #define CRYSTALXTALNAME "data::crystal::crystal_name"
 #define CRYSTALPNAME "data::crystal::project_name"

@@ -15,13 +15,13 @@
 class Beam
 {
 private:
-    
+
 public:
     Beam();
-    
+
     virtual double integralBetweenEwaldWavelengths(double lowWavelength, double highWavelength) { return 0;};
     virtual double getNominalWavelength() { return 0;};
-    
+
     virtual void addParameters(GetterSetterMapPtr map) {};
     virtual bool nonZeroPartialityExpected(double lowWavelength, double highWavelength) { return false;};
 };

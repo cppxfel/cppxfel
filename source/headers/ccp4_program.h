@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -111,10 +111,10 @@ int ccp4Callback(CCP4INTFUNCPTR mycallback, char *mode, int ierr, char *message)
 
 /** Set a user-defined callback function
  * This is a wrapper to ccp4Callback - it stores a user-defined
- * callback function which must be of the form 
+ * callback function which must be of the form
  * "function(const int, const char *)"
  * @param mycallback Callback function
- * @return 1 (if the function is stored), 0 (if it is not) 
+ * @return 1 (if the function is stored), 0 (if it is not)
  */
 int ccp4SetCallback(CCP4INTFUNCPTR mycallback);
 
@@ -132,7 +132,7 @@ int ccp4InvokeCallback(int ierr, char *message);
  * @param level Severity level supplied from ccperror
  * @param message Message text supplied from ccperror
  * @return Always returns 1
-*/      
+*/
 int ccp4NullCallback(int level, char *message);
 
 /** Check existence of licence agreement
@@ -154,8 +154,8 @@ int html_log_output(int ihtml_in);
 int summary_output(int isumm_in);
 
 #ifdef __cplusplus
-} 
-} 
+}
+}
 #endif
 
 #endif   /* __CCP4Program__ */

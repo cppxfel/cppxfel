@@ -27,38 +27,38 @@ namespace cppxfel
     private:
         // personal parser object to store parameters for refinement
         static InputFileParser *personalParser;
-        
+
         // storage of matrices leading to solutions
         std::vector<MatrixPtr> solutions;
-        
+
         // local copy of pointer to dxtbx-style detector.
         DxtbxDetectorPtr dxtbxDetector;
-        
+
         // convert from one format into another and also change origin
         vec3<double> cppxfelVecToScitbxVec3(vec hkl);
         vec scitbxVec3ToCppxfelVec(vec3<double> hkl3);
-        
+
         // converter which uses dxtbxDetector object to convert coordinates.
         virtual std::pair<double, double> reciprocalCoordinatesToPixels(vec hkl);
-        
+
         // overrides for indexing for suitability without checking solutions.
         virtual IndexingSolutionStatus tryIndexingSolution(IndexingSolutionPtr solutionPtr);
         virtual bool checkIndexingSolutionDuplicates(MatrixPtr newSolution, bool excludeLast = false);
     public:
         // call first, before doing anything else
         static void init();
-        
+
         // call to set space group (integer between 1 and 210) and unit cell dimensions (e.g. 160 40 125 90 90 90)
         static void setCrystalParameters(int spaceGroupNum, double params[6]);
-        
+
         // call to set maximum reciprocal distance in inverse Angstroms
         // (e.g. 0.1 would be up to 10 Å away from beam centre, or equivalent).
         static void setMaxReciprocalDistance(double newMaxReciprocalDistance);
-        
+
         // call to set the estimation of the domain size in inverse Angstroms
         // e.g. 0.0001 would correspond to a domain size of 1 micrometre.
         static void setInverseDomainSize(double inverseDomainSize);
-        
+
         // Initialise an image object:
         // you MUST call all parameter settings (function outlines are above this line)
         // before attempting to initialise an image object.
@@ -78,18 +78,18 @@ namespace cppxfel
 
         // at this point, call the business function
         void findIndexingSolutions() { Image::findIndexingSolutions(); };
-        
+
         // how many solutions did I find?
         // must only be called after findIndexingSolutions() if you don't want disappointment
         int solutionCount()
         {
             return (int)solutions.size();
         }
-        
+
         // get a rotation matrix (i.e. U of the UB matrix)
         // must only be called after findIndexingSolutions() if you don't want disappointment
         void getSolution(int i, double *matrixParams[9]);
-        
+
         // what kind of image am I? (cppxfel or dials) - don't worry about this
         virtual ImageClass getClass()
         {

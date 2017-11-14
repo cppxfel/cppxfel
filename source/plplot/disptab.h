@@ -20,39 +20,39 @@ enum
 //--------------------------------------------------------------------------
 // Define structure containing pointers to device dependent functions.
 //
-// pl_MenuStr	Pointer to string that is printed in device menu.
+// pl_MenuStr   Pointer to string that is printed in device menu.
 //
-// pl_DevName	A short device "name" for device selection by name.
+// pl_DevName   A short device "name" for device selection by name.
 //
-// pl_type	0 for file-oriented device, 1 for interactive
-//		(the null driver uses -1 here)
+// pl_type      0 for file-oriented device, 1 for interactive
+//              (the null driver uses -1 here)
 //
 // pl_seq       The sequence number for ordering the presentation list of the
 //              available drivers.  This is an ordering only, not an absolute
 //              position in the list.
 //
-// pl_init	Initialize device.  This routine may also prompt the user
-//		for certain device parameters or open a graphics file
-//		(see note).  Called only once to set things up.  Certain
-//		options such as familying and resolution (dots/mm) should
-//		be set up before calling this routine (note: some drivers
-//		ignore these).
+// pl_init      Initialize device.  This routine may also prompt the user
+//              for certain device parameters or open a graphics file
+//              (see note).  Called only once to set things up.  Certain
+//              options such as familying and resolution (dots/mm) should
+//              be set up before calling this routine (note: some drivers
+//              ignore these).
 //
-// pl_line	Draws a line between two points.
+// pl_line      Draws a line between two points.
 //
-// pl_polyline	Draws a polyline (no broken segments).
+// pl_polyline  Draws a polyline (no broken segments).
 //
-// pl_eop	Finishes out current page (see note).
+// pl_eop       Finishes out current page (see note).
 //
-// pl_bop	Set up for plotting on a new page. May also open a new
-//		a new graphics file (see note).
+// pl_bop       Set up for plotting on a new page. May also open a new
+//              a new graphics file (see note).
 //
-// pl_tidy	Tidy up. May close graphics file (see note).
+// pl_tidy      Tidy up. May close graphics file (see note).
 //
-// pl_state	Handle change in PLStream state
-//		(color, pen width, fill attribute, etc).
+// pl_state     Handle change in PLStream state
+//              (color, pen width, fill attribute, etc).
 //
-// pl_esc	Escape function for driver-specific commands.
+// pl_esc       Escape function for driver-specific commands.
 //
 //
 // Notes:

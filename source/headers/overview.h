@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -34,7 +34,7 @@ cover common tasks, such as file opening, parsing keyworded input,
 reading and writing of standard data formats, applying symmetry
 operations, etc.  Programs in the suite call these routines which, as
 well as saving the programmer some effort, ensure that the varied
-programs in the suite have a similar look-and-feel. 
+programs in the suite have a similar look-and-feel.
 <p>
 Since 2002, there has been a major effort to re-write
 much of the CCP4 library into C/C++. The aims are:
@@ -45,11 +45,11 @@ For example, Eugene Krissinel's MMDB library acts on a data structure
 which represents the various levels of structure of a protein model.
 The new MTZ library encapsulates the crystal/dataset hierarchy that
 is increasingly being used by programs.
-<li>To maintain support for existing programs. In particular, the 
+<li>To maintain support for existing programs. In particular, the
 existing Fortran APIs will be maintained, although they will now often
 be only wrappers to functions in the new library. It is hoped that many
 existing programs will be migrated to using the new library directly.
-<li>To provide support for scripting. It is possible to generate APIs 
+<li>To provide support for scripting. It is possible to generate APIs
 for Python, Tcl and Perl automatically from the core C code. Thus, much
 of the standard CCP4 functionality wil be available to scripts used
 e.g. in ccp4i or the molecular graphics project.
@@ -62,9 +62,9 @@ is considered more appropriate for a collaborative project like CCP4.
  * @section start This documentation
 
 <p>
-This documentation is generated automatically by 
+This documentation is generated automatically by
 <a href="http://www.doxygen.org/">Doxygen</a> from
-comment sections in the code. It is therefore detailed and extensive. 
+comment sections in the code. It is therefore detailed and extensive.
 The library divides roughly into the following sections:
 <dl>
 <dt>CMTZ library
@@ -85,4 +85,3 @@ The library divides roughly into the following sections:
 </dl>
 
  */
-

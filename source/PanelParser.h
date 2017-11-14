@@ -13,14 +13,14 @@
 class PanelParser : public FileParser
 {
 private:
-	vector<PanelPtr> panels;
+        vector<PanelPtr> panels;
 
 public:
-	virtual void parse(bool fromPython = false);
+        virtual void parse(bool fromPython = false);
 
-	void addPanel(std::string rest, PanelTag tag = PanelTagNormal);
-	PanelParser(std::string filename);
-	virtual ~PanelParser();
+        void addPanel(std::string rest, PanelTag tag = PanelTagNormal);
+        PanelParser(std::string filename);
+        virtual ~PanelParser();
 };
 
 #endif /* PANELPARSER_H_ */

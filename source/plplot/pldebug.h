@@ -52,7 +52,7 @@
 // be much nicer if CPP had the abilities of m4, sigh..
 //
 // Syntax:
-//	pldebug(label, format [, arg1, arg2, ...] );
+//      pldebug(label, format [, arg1, arg2, ...] );
 //
 // The label is typically the calling function name.
 //--------------------------------------------------------------------------

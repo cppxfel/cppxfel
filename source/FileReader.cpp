@@ -28,30 +28,30 @@ vector<std::string> FileReader::split(const std::string s, const std::string &de
 {
     vector<std::string> elems;
     std::string rest = s;
-    
+
     int count = 0;
     bool finished = false;
-    
+
     while (!finished)
     {
         count++;
         size_t index = rest.substr(1, rest.length() - 1).find(delim);
-        
+
         if (index == std::string::npos)
         {
             index = rest.length() - 1;
             finished = true;
         }
-        
+
         std::string cutout = rest.substr(1, index + 1);
         elems.push_back(cutout);
-        
+
         rest = rest.substr(index + 1, s.length() - index - 1);
-        
+
         if (index == 0)
             break;
     }
-    
+
     return elems;
 }
 
@@ -62,26 +62,26 @@ vector<std::string> FileReader::split(const std::string &s, char delim) {
 }
 
 int FileReader::splitAtIndices(const std::string &s, vector<int> &positions, vector<std::string> &elems) {
-    
+
     for (int i = 0; i < positions.size() - 1; i++)
     {
         int start = positions[i];
         int length = positions[i + 1] - start;
-        
+
         if (s.size() < positions[i + 1])
             return 0;
-        
+
         std::string segment = s.substr(start, length);
         elems.push_back(segment);
     }
-    
+
     return 1;
 }
 
 bool FileReader::exists(const std::string& name)
 {
-	struct stat buffer;
-	return (stat(name.c_str(), &buffer) == 0);
+        struct stat buffer;
+        return (stat(name.c_str(), &buffer) == 0);
 }
 
 std::string FileReader::get_file_contents(const char *filename)
@@ -97,12 +97,12 @@ std::string FileReader::get_file_contents(const char *filename)
         in.close();
         return(contents);
     }
-    
+
     sleep(1);
-    
+
     std::string errString = "Could not get file contents for file " + std::string(filename);
     Logger::mainLogger->addString(errString);
     Logger::mainLogger->addString(strerror(errno));
-    
+
     throw(errno);
 }

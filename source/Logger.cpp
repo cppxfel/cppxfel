@@ -19,7 +19,7 @@ Logger::Logger()
 
 Logger::~Logger()
 {
-    
+
 }
 
 bool Logger::isReady()
@@ -38,7 +38,7 @@ bool Logger::tryLock(std::mutex &lock, int maxTries)
 {
     int tryCount = 0;
     bool locked = false;
-    
+
     while (!locked)
     {
         try
@@ -49,10 +49,10 @@ bool Logger::tryLock(std::mutex &lock, int maxTries)
         {
             locked = false;
         }
-        
+
         tryCount ++;
     }
-    
+
     return locked;
 }
 
@@ -60,49 +60,49 @@ void Logger::addStream(std::ostringstream *stream, LogLevel level)
 {
     if (level > printedLogLevel)
         return;
-    
+
     bool success = tryLock(mtx);
-    
+
     if (!success)
         return;
-    
+
     boost::thread::id thread_id = boost::this_thread::get_id();
-    
+
     StreamPtr ptr = StreamPtr(new std::ostringstream());
     *ptr << stream->str();
-    
+
     if (stringsToOutput.count(thread_id) == 0)
     {
         stringsToOutput[thread_id] = vector<LogAndLevel>();
         stringsToOutput[thread_id].reserve(100);
     }
-    
+
     LogAndLevel logAndLevel = std::make_pair(ptr, level);
-    
+
     stringsToOutput[thread_id].push_back(logAndLevel);
-    
+
     ready = true;
-    
+
     printBlock.notify_all();
-    
+
     mtx.unlock();
 }
 
 void Logger::awaitPrinting()
 {
     std::unique_lock<std::mutex> lck(mtx);
-    
+
     while (true)
     {
         printBlock.wait(lck, isReady);
-        
+
         std::unique_lock<std::mutex> writeLock(writing, std::defer_lock);
-        
+
         while (!writeLock.try_lock()) {}
-        
+
         int count = 0;
         int num = 0;
-        
+
         for (StringMap::iterator it = stringsToOutput.begin();
              it != stringsToOutput.end(); ++it)
         {
@@ -110,22 +110,22 @@ void Logger::awaitPrinting()
             {
                 if (stringsToOutput[it->first][i].second > printedLogLevel)
                     continue;
-                
+
                 std::cout << stringsToOutput[it->first][i].first->str() << std::flush;
                 count++;
-                
+
                 stringsToOutput[it->first][i].first->str("");
                 stringsToOutput[it->first][i].first->clear();
             }
-            
+
             num++;
-            
+
             stringsToOutput[it->first].clear();
             vector<LogAndLevel>().swap(stringsToOutput[it->first]);
         }
-        
+
         ready = false;
-        
+
         writing.unlock();
     }
 }

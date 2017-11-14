@@ -18,17 +18,17 @@ private:
     std::map<double, double> spectrum;
     double wavelength;
     double interpolateBetweenIterators(std::map<double, double>::iterator itLow, std::map<double, double>::iterator itHigh, double wavelength);
-    
+
 public:
     SpectrumBeam(GaussianBeamPtr gaussianStart, MtzPtr mtzStart);
     bool nonZeroPartialityExpected(double lowWavelength, double highWavelength);
-    
+
     double integralBetweenEwaldWavelengths(double lowWavelength, double highWavelength);
     double getNominalWavelength()
     {
         return wavelength;
     }
-    
+
     void addParameters(GetterSetterMapPtr map) {};
 };
 

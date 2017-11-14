@@ -34,52 +34,52 @@ private:
 
 public:
     void setup(double a, double b, double c, double alpha, double beta, double gamma, int spaceGroupNum, double resolution = 0);
-    
+
     int standardVectorCount()
     {
         return (int)spotVectors.size();
     }
-    
+
     vec3<int> intVector(int i)
     {
         return (vec3<int>)integerVectors[i];
     }
-    
+
     SpotVectorPtr standardVector(int i)
     {
         return spotVectors[i];
     }
-    
+
     int symOperatorCount()
     {
         return (int)symOperators.size();
     }
-    
+
     MatrixPtr symOperator(int i)
     {
         return symOperators[i];
     }
-    
+
     double getMaxDistance()
     {
         return maxDistance;
     }
-    
+
     MatrixPtr getUnitCellOnly()
     {
         return unitCellOnly;
     }
-    
+
     double getMinDistance()
     {
         return minDistance;
     }
-    
+
     std::vector<SpotVectorPtr> getStandardVectors()
     {
         return spotVectors;
     }
-    
+
     UnitCellLattice(double a, double b, double c, double alpha, double beta, double gamma, int spaceGroupNum, double resolution = 0) : FreeLattice()
     {
         setup(a, b, c, alpha, beta, gamma, spaceGroupNum, resolution);

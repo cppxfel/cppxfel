@@ -18,7 +18,7 @@ class FreeLattice
 protected:
     std::vector<SpotVectorPtr> spotVectors;
     std::vector<SpotVectorPtr> expandedSpotVectors;
-    
+
     void calculateExpandedVectors(bool originOnly);
     void startingAngles(double a, double b, double c, double alpha, double beta, double gamma);
 public:

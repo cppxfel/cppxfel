@@ -23,51 +23,51 @@ double GetterSetterMap::minimizeParameter(int whichParam)
 {
     double param_trials[3];
     double param_scores[3];
-    
+
     double step = stepSizes[whichParam];
-    
+
     if (step < stepConvergences[whichParam])
         return 0;
-    
+
     Getter getter = getters[whichParam];
     Setter setter = setters[whichParam];
     void *object = objects[whichParam];
-    
+
     int j = 0;
     int param_min_num = 1;
-    
+
     double bestParam = (*getter)(object);
-    
+
     for (double i = bestParam - step; j < 3; i += step)
     {
         //*param = i;
         (*setter)(object, i);
-        
+
         double aScore = (*evaluationFunction)(evaluateObject);
-        
+
         if (aScore != aScore) aScore = FLT_MAX;
-        
+
         param_scores[j] = aScore;
         param_trials[j] = i;
         j++;
     }
-    
+
     double param_min_score = param_scores[1];
-    
+
     for (int i = 0; i < 3; i++)
         if (param_scores[i] < param_min_score)
         {
             param_min_score = param_scores[i];
             param_min_num = i;
         }
-    
+
     (*setter)(object, param_trials[param_min_num]);
-    
+
   //  std::cout << "Param_min_num trial is " << param_trials[param_min_num] << std::endl;
-    
+
     if (param_min_num == 1)
         stepSizes[whichParam] /= 2;
-    
+
     return param_scores[param_min_num];
 }
 
@@ -81,6 +81,6 @@ void GetterSetterMap::refine(GetterSetterRefinementType type)
             minimizeParameter(i);
         }
     }
-    
+
     double score = (*evaluationFunction)(evaluateObject);
 }

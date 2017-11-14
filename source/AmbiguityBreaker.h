@@ -25,17 +25,17 @@ private:
     double gridCorrelation(int imageNumI, int imageNumJ);
     double evaluation();
     double gradientForImage(int imageNum, int axis);
-    
+
     double distance(int vectorNum, int centreNum);
     double toggleValue(int slowCloud, int fastCloud);
     double evaluationCloudCluster();
     double gradientCloudCluster(int centre, int axis);
-    
+
     double dotProduct(int imageNumI, int imageNumJ);
-    
+
     scitbx::af::shared<double> x;
     scitbx::af::shared<double> clouds;
-    
+
     void assignPartialities();
     void breakAmbiguity();
     void makeCorrelationGrid();
@@ -43,14 +43,14 @@ private:
     void split();
     void merge();
     MtzManager *merged;
-    
+
 public:
     void setMtzs(vector<MtzPtr> newMtzs);
-    
+
     AmbiguityBreaker(vector<MtzPtr> newMtzs);
     void run();
     void overrideAmbiguity(int newAmbiguity);
-    
+
     MtzManager *getMergedMtz()
     {
         return merged;

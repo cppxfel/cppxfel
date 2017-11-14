@@ -24,26 +24,26 @@ using namespace CSym;
 typedef enum
 {
     RefinementTypeOrientationMatrixEarly = 0,
-	RefinementTypeDetectorWavelength = 1,
+        RefinementTypeDetectorWavelength = 1,
     RefinementTypeOrientationMatrixVeryEarly = 2,
     RefinementTypeOrientationMatrixRough = 6,
-	RefinementTypeOrientationMatrixHighestPeak = 9,
+        RefinementTypeOrientationMatrixHighestPeak = 9,
     RefinementTypeOrientationMatrixEarlySeparated = 10,
     RefinementTypeOrientationMatrixStdevOnly = 12,
     RefinementTypeRefineLAxis = 13,
     RefinementTypeOrientationMatrixEarlyWeighted = 14,
     RefinementTypeOrientationMatrixReverse = 15,
-    
+
 } RefinementType;
 
 class IOMRefiner : public boost::enable_shared_from_this<IOMRefiner>
 {
 private:
-	ImageWeakPtr image;
-	vector<MillerPtr> millers;
-	vector<MillerPtr> nearbyMillers;
+        ImageWeakPtr image;
+        vector<MillerPtr> millers;
+        vector<MillerPtr> nearbyMillers;
     vector<MillerPtr> roughMillers;
-	vector<Spot *>spots;
+        vector<Spot *>spots;
     MatrixPtr matrix;
     MatrixPtr lastRotatedMatrix;
     std::vector<Match> indexingMatches;
@@ -55,12 +55,12 @@ private:
     CCP4SPG *spaceGroup;
     bool complexUnitCell;
     RotationMode rotationMode;
-	vector<double> unitCell;
+        vector<double> unitCell;
     bool refineA;
     bool refineB;
     bool refineC;
-	double hRot;
-	double kRot;
+        double hRot;
+        double kRot;
     double lRot;
     double aRot;
     double bRot;
@@ -68,67 +68,67 @@ private:
     double bestHRot;
     double bestKRot;
     double bestLRot;
-	double testDistance;
-	double testWavelength;
-	double testSpotSize;
-	double initialStep;
+        double testDistance;
+        double testWavelength;
+        double testSpotSize;
+        double initialStep;
     double getTotalStandardDeviation();
-	int expectedSpots;
-	int searchSize;
-	static double intensityThreshold;
+        int expectedSpots;
+        int searchSize;
+        static double intensityThreshold;
     static bool absoluteIntensity;
     static bool lowIntensityPenalty;
-	double maxResolution;
-	MtzManager *reference;
-	void calculateNearbyMillers(bool rough);
-	RefinementType refinement;
-	double lastTotal;
-	double lastStdev;
-	double testBandwidth;
+        double maxResolution;
+        MtzManager *reference;
+        void calculateNearbyMillers(bool rough);
+        RefinementType refinement;
+        double lastTotal;
+        double lastStdev;
+        double testBandwidth;
     double lastScore;
-	vector<vector<double> > solutions;
+        vector<vector<double> > solutions;
     bool recalculateMillerPositions;
-    
+
     double orientationTolerance;
     std::ostringstream logged;
     void sendLog(LogLevel priority = LogLevelNormal);
 
 public:
-	IOMRefiner(ImagePtr newImage = ImagePtr(), MatrixPtr matrix = MatrixPtr());
+        IOMRefiner(ImagePtr newImage = ImagePtr(), MatrixPtr matrix = MatrixPtr());
     void setComplexMatrix();
     virtual ~IOMRefiner();
 
     void lockUnitCellDimensions();
     void calculateOnce();
-	void checkAllMillers(double maxResolution, double bandwidth, bool complexShoebox = false, bool perfectCalculation = true);
-	MtzPtr newMtz(int i, bool silent = false);
-	void getWavelengthHistogram(vector<double> &wavelengths,
-			vector<int> &frequencies, LogLevel level = LogLevelDetailed, int whichAxis = 0);
-	double score(int whichAxis = 0, bool silent = false);
+        void checkAllMillers(double maxResolution, double bandwidth, bool complexShoebox = false, bool perfectCalculation = true);
+        MtzPtr newMtz(int i, bool silent = false);
+        void getWavelengthHistogram(vector<double> &wavelengths,
+                        vector<int> &frequencies, LogLevel level = LogLevelDetailed, int whichAxis = 0);
+        double score(int whichAxis = 0, bool silent = false);
 
-	static bool millerReachesThreshold(MillerPtr miller);
-	void findSpots();
-	static void duplicateSpots(vector<ImagePtr>images);
-	void writeDatFromSpots(std::string filename);
-	
-	void matchMatrixToSpots();
-	void matchMatrixToSpots(RefinementType refinement);
-	double minimizeParameter(double *meanStep, double *param, int whichAxis = 0);
-	void minimizeTwoParameters(double *meanStep1, double *meanStep2,
-			double *param1, double *param2);
+        static bool millerReachesThreshold(MillerPtr miller);
+        void findSpots();
+        static void duplicateSpots(vector<ImagePtr>images);
+        void writeDatFromSpots(std::string filename);
 
-	void refineDetectorAndWavelength(MtzManager *reference = NULL);
-	void refineOrientationMatrix();
-	void refineOrientationMatrix(RefinementType refinementType);
-	
+        void matchMatrixToSpots();
+        void matchMatrixToSpots(RefinementType refinement);
+        double minimizeParameter(double *meanStep, double *param, int whichAxis = 0);
+        void minimizeTwoParameters(double *meanStep1, double *meanStep2,
+                        double *param1, double *param2);
+
+        void refineDetectorAndWavelength(MtzManager *reference = NULL);
+        void refineOrientationMatrix();
+        void refineOrientationMatrix(RefinementType refinementType);
+
     void showHistogram(bool silent);
     bool millerWithinBandwidth(MillerPtr miller);
-	int getTotalReflections();
-	int getTotalReflections(double threshold);
+        int getTotalReflections();
+        int getTotalReflections(double threshold);
     int getTotalReflectionsWithinBandwidth();
-    
+
     double getRot(int rotNum);
-	void dropMillers();
+        void dropMillers();
 
     bool isGoodSolution();
     bool isBasicGoodSolution();
@@ -137,203 +137,203 @@ public:
     double getWavelength();
     std::string refinementSummary();
     static std::string refinementSummaryHeader();
-    
+
     void getBestRots(double *rot1, double *rot2, double *rot3)
     {
         *rot1 = bestHRot;
         *rot2 = bestKRot;
         *rot3 = bestLRot;
     }
-    
+
     void setMatch(Match newMatch1, Match newMatch2)
     {
         indexingMatches.push_back(newMatch1);
         indexingMatches.push_back(newMatch2);
     }
-    
+
     std::vector<Match> getMatch()
     {
         return indexingMatches;
     }
-    
+
     MatrixPtr getMatrix()
     {
         return matrix;
     }
-    
+
     void setMatrix(MatrixPtr matrix)
     {
         this->matrix = matrix;
     }
-    
+
     void setMatrixCopy(MatrixPtr matrix)
     {
         this->matrix = matrix->copy();
     }
-    
+
     double getLastScore()
     {
         return lastScore;
     }
-    
-	ImagePtr getImage()
-	{
-		return image.lock();
-	}
 
-	void setImage(ImagePtr image)
-	{
-		this->image = image;
-	}
+        ImagePtr getImage()
+        {
+                return image.lock();
+        }
 
-	double getHRot() const
-	{
-		return hRot;
-	}
+        void setImage(ImagePtr image)
+        {
+                this->image = image;
+        }
 
-	void setHRot(double rot)
-	{
-		hRot = rot;
-	}
+        double getHRot() const
+        {
+                return hRot;
+        }
 
-	double getKRot() const
-	{
-		return kRot;
-	}
+        void setHRot(double rot)
+        {
+                hRot = rot;
+        }
 
-	void setKRot(double rot)
-	{
-		kRot = rot;
-	}
+        double getKRot() const
+        {
+                return kRot;
+        }
 
-	double getTestBandwidth() const
-	{
-		return testBandwidth;
-	}
+        void setKRot(double rot)
+        {
+                kRot = rot;
+        }
 
-	void setTestBandwidth(double testBandwidth)
-	{
-		this->testBandwidth = testBandwidth;
-	}
+        double getTestBandwidth() const
+        {
+                return testBandwidth;
+        }
 
-	double getTestSpotSize() const
-	{
-		return testSpotSize;
-	}
+        void setTestBandwidth(double testBandwidth)
+        {
+                this->testBandwidth = testBandwidth;
+        }
 
-	void setTestSpotSize(double testSpotSize)
-	{
-		this->testSpotSize = testSpotSize;
-	}
+        double getTestSpotSize() const
+        {
+                return testSpotSize;
+        }
 
-	double getMaxResolution() const
-	{
-		return maxResolution;
-	}
+        void setTestSpotSize(double testSpotSize)
+        {
+                this->testSpotSize = testSpotSize;
+        }
 
-	void setMaxResolution(double maxResolution)
-	{
-		this->maxResolution = maxResolution;
-	}
+        double getMaxResolution() const
+        {
+                return maxResolution;
+        }
 
-	int getSearchSize() const
-	{
-		return searchSize;
-	}
+        void setMaxResolution(double maxResolution)
+        {
+                this->maxResolution = maxResolution;
+        }
 
-	void setSearchSize(int searchSize)
-	{
-		this->searchSize = searchSize;
-	}
+        int getSearchSize() const
+        {
+                return searchSize;
+        }
 
-	double getInitialStep() const
-	{
-		return initialStep;
-	}
+        void setSearchSize(int searchSize)
+        {
+                this->searchSize = searchSize;
+        }
 
-	void setInitialStep(double initialStep = 1)
-	{
-		this->initialStep = initialStep;
-	}
+        double getInitialStep() const
+        {
+                return initialStep;
+        }
 
-	CCP4SPG*& getSpaceGroup()
-	{
-		return spaceGroup;
-	}
+        void setInitialStep(double initialStep = 1)
+        {
+                this->initialStep = initialStep;
+        }
 
-	void setSpaceGroup(CCP4SPG*& spaceGroup)
-	{
+        CCP4SPG*& getSpaceGroup()
+        {
+                return spaceGroup;
+        }
+
+        void setSpaceGroup(CCP4SPG*& spaceGroup)
+        {
         if (this->spaceGroup != NULL)
             ccp4spg_free(&this->spaceGroup);
-        
-		this->spaceGroup = spaceGroup;
-	}
 
-	const vector<Spot *>& getSpots() const
-	{
-		return spots;
-	}
+                this->spaceGroup = spaceGroup;
+        }
 
-	int getExpectedSpots() const
-	{
-		return expectedSpots;
-	}
+        const vector<Spot *>& getSpots() const
+        {
+                return spots;
+        }
 
-	void setExpectedSpots(int expectedSpots)
-	{
-		this->expectedSpots = expectedSpots;
-	}
+        int getExpectedSpots() const
+        {
+                return expectedSpots;
+        }
 
-	const vector<vector<double> >& getSolutions() const
-	{
-		return solutions;
-	}
+        void setExpectedSpots(int expectedSpots)
+        {
+                this->expectedSpots = expectedSpots;
+        }
 
-	void setSolutions(const vector<vector<double> >& solutions)
-	{
-		this->solutions = solutions;
-	}
+        const vector<vector<double> >& getSolutions() const
+        {
+                return solutions;
+        }
 
-	double getIntensityThreshold() const
-	{
-		return intensityThreshold;
-	}
+        void setSolutions(const vector<vector<double> >& solutions)
+        {
+                this->solutions = solutions;
+        }
 
-	void setIntensityThreshold(double intensityThreshold)
-	{
-		this->intensityThreshold = intensityThreshold;
-	}
+        double getIntensityThreshold() const
+        {
+                return intensityThreshold;
+        }
 
-	vector<double>& getUnitCell()
-	{
-		return unitCell;
-	}
+        void setIntensityThreshold(double intensityThreshold)
+        {
+                this->intensityThreshold = intensityThreshold;
+        }
 
-	void setUnitCell(vector<double>& unitCell)
-	{
-		this->unitCell = unitCell;
-	}
-    
+        vector<double>& getUnitCell()
+        {
+                return unitCell;
+        }
+
+        void setUnitCell(vector<double>& unitCell)
+        {
+                this->unitCell = unitCell;
+        }
+
     void setOrientationTolerance(double newTolerance)
     {
         orientationTolerance = newTolerance;
     }
-    
+
     double getBestLRot()
     {
         return bestLRot;
     }
-    
+
     bool isCalculatingRough()
     {
         return roughCalculation;
     }
-    
+
     void setCalculatingRough(bool rough)
     {
         roughCalculation = rough;
     }
-    
+
     MtzPtr getLastMtz()
     {
         return lastMtz;
