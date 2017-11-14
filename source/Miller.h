@@ -24,7 +24,7 @@ class Image;
 
 typedef enum
 {
-	CalculationTypeOriginal, CalculationTypeIntegrate
+        CalculationTypeOriginal, CalculationTypeIntegrate
 } CalculationType;
 
 typedef enum
@@ -46,33 +46,33 @@ private:
     static float trickyRes;
     static bool setupStatic;
     static int peakSize;
-    
+
     short int h;
     short int k;
     short int l;
     bool free;
     float phase;
     char fakeFriedel;
-	RlpModel rlpModel;
+        RlpModel rlpModel;
     double polarisationCorrection;
     double getPolarisationCorrection();
-	std::map<RejectReason, bool> rejectedReasons;
-	double partialCutoff;
-	float bFactor;
-	float scale;
-	float lastX;
-	float lastY;
-    
+        std::map<RejectReason, bool> rejectedReasons;
+        double partialCutoff;
+        float bFactor;
+        float scale;
+        float lastX;
+        float lastY;
+
     double latestHRot;
     double latestKRot;
     float bFactorScale;
     bool excluded;
     bool rejected;
     bool calculatedRejected;
-    
-	std::pair<double, double> shift;
+
+        std::pair<double, double> shift;
     float resol;
- 
+
     double superGaussian(double bandwidth, double mean,
                         double sigma, double exponent);
     double integrate_beam_slice(double pBandwidth, double qBandwidth, double mean,
@@ -81,13 +81,13 @@ private:
     double sliced_integral(double low_wavelength, double high_wavelength,
                           double spot_size_radius, double maxP, double maxQ, double mean, double sigma,
                           double exponent, bool binary = false, bool withBeamObject = false);
-    
+
     double integrate_sphere_uniform(double p, double q);
     double integrate_sphere_gaussian(double p, double q);
     double integrate_sphere(double p, double q, double radius, double sphere_volume, double circle_surface_area);
-    
+
     double expectedRadius(double spotSize, double mosaicity, vec *hkl);
-    
+
     BeamPtr beam;
     ImageWeakPtr image;
     IOMRefiner *indexer;
@@ -97,103 +97,103 @@ public:
     int getH();
     int getK();
     int getL();
-    
+
     static void setupStaticVariables();
     vec hklVector(bool shouldFlip = true);
     void setFlipMatrix(int i);
-    
+
     MatrixPtr getFlipMatrix();
-    
-	MatrixPtr matrix;
-	Reflection *parentReflection;
+
+        MatrixPtr matrix;
+        Reflection *parentReflection;
     MtzManager *mtzParent;
     bool crossesBeamRoughly(MatrixPtr rotatedMatrix, double mosaicity,
                             double spotSize, double wavelength, double bandwidth);
 
-	Miller(MtzManager *parent, int _h = 0, int _k = 0, int _l = 0);
-	MillerPtr copy(void);
-	void printHkl(void);
-	static double scaleForScaleAndBFactor(double scaleFactor, double bFactor, double resol, double exponent_exponent = 1);
+        Miller(MtzManager *parent, int _h = 0, int _k = 0, int _l = 0);
+        MillerPtr copy(void);
+        void printHkl(void);
+        static double scaleForScaleAndBFactor(double scaleFactor, double bFactor, double resol, double exponent_exponent = 1);
     void limitingEwaldWavelengths(vec hkl, double mosaicity, double spotSize, double wavelength, double *limitLow, double *limitHigh);
-    
+
     bool isOverlappedWithSpots(std::vector<SpotPtr> *spots, bool actuallyDelete = true);
     double calculateDefaultNorm();
     void setPartialityModel(PartialityModel model);
-	void setData(double _intensity, double _sigma, double _partiality,
-			double _wavelength);
-	void setParent(Reflection *reflection);
-	void setFree(bool newFree);
-	bool positiveFriedel(bool *positive, int *isym = NULL);
-	void setRejected(RejectReason reason, bool rejection);
-	bool isRejected(RejectReason reason);
-	void makeScalesPermanent();
+        void setData(double _intensity, double _sigma, double _partiality,
+                        double _wavelength);
+        void setParent(Reflection *reflection);
+        void setFree(bool newFree);
+        bool positiveFriedel(bool *positive, int *isym = NULL);
+        void setRejected(RejectReason reason, bool rejection);
+        bool isRejected(RejectReason reason);
+        void makeScalesPermanent();
     void integrateIntensity(MatrixPtr transformedMatrix);
     vec getTransformedHKL(double hRot, double kRot);
     double getEwaldWeight(double hRot, double kRot, bool isH);
-    
-	bool accepted(void);
-	bool isFree()
+
+        bool accepted(void);
+        bool isFree()
     {
         return free;
     }
-    
-	void flip(void);
+
+        void flip(void);
 
     bool isRejected();
     double getBFactorScale();
-	double intensity(bool withCutoff = true);
-	double getSigma(void);
-	double getPartiality();
-	double getWavelength(void);
-	double getWavelength(double hRot, double kRot);
+        double intensity(bool withCutoff = true);
+        double getSigma(void);
+        double getPartiality();
+        double getWavelength(void);
+        double getWavelength(double hRot, double kRot);
     double getWavelength(MatrixPtr transformedMatrix);
-	double getWeight(bool cutoff = true, WeightType weighting = WeightTypePartialitySigma);
-	double resolution();
+        double getWeight(bool cutoff = true, WeightType weighting = WeightTypePartialitySigma);
+        double resolution();
     double twoTheta(bool horizontal);
-	double scatteringAngle(ImagePtr image);
+        double scatteringAngle(ImagePtr image);
 
     void incrementOverlapMask(double hRot = 0, double kRot = 0);
     bool isOverlapped();
-	void positionOnDetector(MatrixPtr transformedMatrix, int *x,
-			int *y);
+        void positionOnDetector(MatrixPtr transformedMatrix, int *x,
+                        int *y);
     void recalculateBetterPartiality();
-    
+
     void setHorizontalPolarisationFactor(double newFactor);
-	void recalculatePartiality(MatrixPtr rotatedMatrix, double mosaicity,
-			double spotSize, double wavelength, double bandwidth, double exponent, bool binary = false);
-	double partialityForHKL(vec hkl, double mosaicity,
-			double spotSize, double wavelength, double bandwidth, double exponent, bool binary = false);
-	void applyScaleFactor(double scaleFactor);
-	double calculateNormPartiality(MatrixPtr rotatedMatrix, double mosaicity,
-			double spotSize, double wavelength, double bandwidth, double exponent);
-	double calculateNormFromResolution(MatrixPtr rotatedMatrix, double mosaicity,
-			double spotSize, double wavelength, double bandwidth, double exponent,
-			double d);
+        void recalculatePartiality(MatrixPtr rotatedMatrix, double mosaicity,
+                        double spotSize, double wavelength, double bandwidth, double exponent, bool binary = false);
+        double partialityForHKL(vec hkl, double mosaicity,
+                        double spotSize, double wavelength, double bandwidth, double exponent, bool binary = false);
+        void applyScaleFactor(double scaleFactor);
+        double calculateNormPartiality(MatrixPtr rotatedMatrix, double mosaicity,
+                        double spotSize, double wavelength, double bandwidth, double exponent);
+        double calculateNormFromResolution(MatrixPtr rotatedMatrix, double mosaicity,
+                        double spotSize, double wavelength, double bandwidth, double exponent,
+                        double d);
     double observedPartiality(double reference);
     double observedPartiality(MtzManager *reference);
-    
+
     vec getTransformedHKL(MatrixPtr matrix);
     void makeComplexShoebox(double wavelength, double bandwidth, double mosaicity, double rlpSize);
-    
+
     static double averageRawIntensity(vector<MillerPtr> millers);
 
-	virtual ~Miller();
-    
+        virtual ~Miller();
+
     void setBeam(BeamPtr newBeam)
     {
         beam = newBeam;
     }
-    
+
     void setExcluded(bool exc = true)
     {
         excluded = exc;
     }
-    
+
     bool isExcluded()
     {
         return excluded;
     }
-    
+
     MtzManager *&getMtzParent()
     {
         return mtzParent;
@@ -203,189 +203,189 @@ public:
     {
         mtzParent = mtz;
     }
-    
-	void setPartiality(double partiality)
-	{
-		this->partiality = partiality;
-	}
-    
+
+        void setPartiality(double partiality)
+        {
+                this->partiality = partiality;
+        }
+
     double getRawestIntensity() const
     {
         return rawIntensity;
     }
 
-	double getRawIntensity() const
-	{
-		return rawIntensity * scale;
-	}
+        double getRawIntensity() const
+        {
+                return rawIntensity * scale;
+        }
 
-	void setRawIntensity(double rawIntensity)
-	{
-		this->rawIntensity = rawIntensity;
-	}
+        void setRawIntensity(double rawIntensity)
+        {
+                this->rawIntensity = rawIntensity;
+        }
 
-	void setSigma(double sigma)
-	{
-		this->sigma = sigma;
-	}
-    
-	const std::string& getFilename() const
-	{
-		return filename;
-	}
+        void setSigma(double sigma)
+        {
+                this->sigma = sigma;
+        }
 
-	void setFilename(const std::string& filename)
-	{
-		this->filename = filename;
-	}
+        const std::string& getFilename() const
+        {
+                return filename;
+        }
 
-	void applyPolarisation(double wavelength);
+        void setFilename(const std::string& filename)
+        {
+                this->filename = filename;
+        }
 
-	double getCountingSigma() const
-	{
-		return countingSigma * scale;
-	}
+        void applyPolarisation(double wavelength);
 
-	void setCountingSigma(double countingSigma)
-	{
-		this->countingSigma = countingSigma;
-	}
+        double getCountingSigma() const
+        {
+                return countingSigma * scale;
+        }
 
-	bool isNormalised() const
-	{
-		return normalised;
-	}
+        void setCountingSigma(double countingSigma)
+        {
+                this->countingSigma = countingSigma;
+        }
 
-	void setNormalised(bool normalised)
-	{
-		this->normalised = normalised;
-	}
+        bool isNormalised() const
+        {
+                return normalised;
+        }
 
-	MatrixPtr getMatrix()
-	{
-		return matrix;
-	}
+        void setNormalised(bool normalised)
+        {
+                this->normalised = normalised;
+        }
 
-	void setMatrix(MatrixPtr matrix)
-	{
-		this->matrix = matrix;
-	}
+        MatrixPtr getMatrix()
+        {
+                return matrix;
+        }
 
-	void setPolarisationCorrection(double polarisationCorrection)
-	{
-		this->polarisationCorrection = polarisationCorrection;
-	}
+        void setMatrix(MatrixPtr matrix)
+        {
+                this->matrix = matrix;
+        }
 
-	void setRejected(bool rejected)
-	{
+        void setPolarisationCorrection(double polarisationCorrection)
+        {
+                this->polarisationCorrection = polarisationCorrection;
+        }
+
+        void setRejected(bool rejected)
+        {
         setRejected(RejectReasonMerge, rejected);
-	}
+        }
 
-	double getLastX() const
-	{
-		return lastX;
-	}
+        double getLastX() const
+        {
+                return lastX;
+        }
 
-	double getLastY() const
-	{
-		return lastY;
-	}
-    
+        double getLastY() const
+        {
+                return lastY;
+        }
+
     std::pair<double, double> position()
     {
         return std::make_pair(lastX, lastY);
     }
 
-	void setLastX(double lastX)
-	{
-		this->lastX = lastX;
-	}
+        void setLastX(double lastX)
+        {
+                this->lastX = lastX;
+        }
 
-	void setLastY(double lastY)
-	{
-		this->lastY = lastY;
-	}
+        void setLastY(double lastY)
+        {
+                this->lastY = lastY;
+        }
 
-	double getPartialCutoff() const
-	{
-		return partialCutoff;
-	}
+        double getPartialCutoff() const
+        {
+                return partialCutoff;
+        }
 
-	void setPartialCutoff(double partialCutoff)
-	{
-		this->partialCutoff = partialCutoff;
-	}
+        void setPartialCutoff(double partialCutoff)
+        {
+                this->partialCutoff = partialCutoff;
+        }
 
-	double getBFactor() const
-	{
-		return bFactor;
-	}
+        double getBFactor() const
+        {
+                return bFactor;
+        }
 
-	void setBFactor(double factor)
-	{
-		if (factor == factor)
-			bFactor = factor;
-        
+        void setBFactor(double factor)
+        {
+                if (factor == factor)
+                        bFactor = factor;
+
         bFactorScale = 0;
-	}
+        }
 
-	double getScale() const
-	{
-		return scale;
-	}
+        double getScale() const
+        {
+                return scale;
+        }
 
-	void setScale(double scale)
-	{
-		if (scale == scale)
-			this->scale = scale;
-        
+        void setScale(double scale)
+        {
+                if (scale == scale)
+                        this->scale = scale;
+
     /*    if ((h == 3 && k == -4 && l == 12) || (h == -4 && k == 3 && l == -12))
         {
             std::cout << "Changing (" << h << ", " << k << ", " << l << ") to " << scale << std::endl;
         }*/
-	}
+        }
 
-	double getResolution()
-	{
+        double getResolution()
+        {
         return resolution();
-	}
+        }
 
-	void setResolution(double resol)
-	{
-		this->resol = resol;
-	}
+        void setResolution(double resol)
+        {
+                this->resol = resol;
+        }
 
-	std::pair<double, double>& getShift()
-	{
-		return shift;
-	}
+        std::pair<double, double>& getShift()
+        {
+                return shift;
+        }
 
-	void setShift(const std::pair<int, int>& shift)
-	{
-		this->shift = shift;
-	}
-    
+        void setShift(const std::pair<int, int>& shift)
+        {
+                this->shift = shift;
+        }
+
     void setImageAndIOMRefiner(ImagePtr newImage, IOMRefiner *indexer)
     {
         this->image = newImage;
         this->indexer = indexer;
     }
-    
+
     ImagePtr getImage()
     {
         return image.lock();
     }
-    
+
     void setCorrectingPolarisation(bool on)
     {
         correctingPolarisation = on;
     }
-    
+
     void setPhase(double newPhase)
     {
         phase = newPhase;
     }
-    
+
     double getPhase()
     {
         return phase;
@@ -411,13 +411,13 @@ public:
     static void rotateMatrixHKL(double hRot, double kRot, double lRot, MatrixPtr oldMatrix, MatrixPtr *newMatrix);
 
 protected:
-	static PartialityModel model;
-	double rawIntensity;
-	double sigma;
-	double countingSigma;
-	double partiality;
-	double wavelength;
-	std::string filename;
+        static PartialityModel model;
+        double rawIntensity;
+        double sigma;
+        double countingSigma;
+        double partiality;
+        double wavelength;
+        std::string filename;
 
 };
 

@@ -54,40 +54,40 @@ std::vector<double> NelderMead::calculateCentroid()
     std::vector<double> centroid;
     centroid.resize(paramCount());
     orderTestPoints();
-    
+
     for (int i = 0; i < paramCount(); i++)
     {
         double total = 0;
-        
+
         for (int j = 0; j < testPoints.size() - 1; j++)
         {
             total += testPoints[j].first[i];
         }
-        
+
         total /= testPoints.size() - 1;
-        
+
         centroid[i] = total;
     }
-    
+
     logged << "Lowest test point: " << testPoints[0].second << std::endl;
     sendLog(LogLevelDebug);
-    
+
     return centroid;
 }
 
 TestPoint NelderMead::reflectOrExpand(std::vector<double> centroid, double scale)
 {
     TestPoint *maxPoint = worstTestPoint();
-    
+
     std::vector<double> diffVec = centroid;
     subtractPoints(&diffVec, maxPoint->first);
     scalePoint(&diffVec, scale);
     std::vector<double> reflectedVec = centroid;
     addPoints(&reflectedVec, diffVec);
-    
+
     TestPoint reflection = std::make_pair(reflectedVec, 0);
     evaluateTestPoint(&reflection);
-    
+
     return reflection;
 }
 
@@ -109,20 +109,20 @@ TestPoint NelderMead::contractedPoint(std::vector<double> centroid)
 void NelderMead::reduction()
 {
     TestPoint bestPoint = testPoints[0];
-    
+
     for (int i = 1; i < testPoints.size(); i++)
     {
         TestPoint point = testPoints[i];
-        
+
         std::vector<double> diffVec = point.first;
         subtractPoints(&diffVec, bestPoint.first);
         scalePoint(&diffVec, sigma);
         std::vector<double> finalVec = bestPoint.first;
         addPoints(&finalVec, diffVec);
-        
+
         TestPoint contractPoint = std::make_pair(finalVec, 0);
         evaluateTestPoint(&contractPoint);
-        
+
         testPoints[i] = contractPoint;
     }
 }
@@ -154,7 +154,7 @@ void NelderMead::setTestPointParameters(TestPoint *testPoint)
     for (int i = 0; i < paramCount(); i++)
     {
         double *ptr = paramPtrs[i];
-        
+
         if (ptr)
             *ptr = testPoint->first[i];
     }
@@ -163,9 +163,9 @@ void NelderMead::setTestPointParameters(TestPoint *testPoint)
 void NelderMead::process()
 {
     int count = 0;
-    
+
     int maxCount = FileParser::getKey("NELDER_MEAD_CYCLES", 100);
-    
+
     while ((!converged() && count < maxCount) || unlimited)
     {
         sendLog(LogLevelDebug);
@@ -176,28 +176,28 @@ void NelderMead::process()
         sendLog(LogLevelDebug);
 
         TestPoint reflected = reflectedPoint(centroid);
-        
+
         if (reflected.second < testPoints[1].second)
         {
             logged << "Reflecting" << std::endl;
             setWorstTestPoint(reflected);
             continue;
         }
-        
+
         if (reflected.second < testPoints[0].second)
         {
             TestPoint expanded = expandedPoint(centroid);
             bool expandedBetter = (expanded.second < reflected.second);
             setWorstTestPoint(expandedBetter ? expanded : reflected);
-            
+
             logged << (expandedBetter ? "Expanding" : "Reflecting") << std::endl;
-            
+
             continue;
         }
-        
+
         TestPoint contracted = contractedPoint(centroid);
         TestPoint *worstPoint = worstTestPoint();
-        
+
         if (contracted.second < worstPoint->second)
         {
             logged << "Contracting" << std::endl;
@@ -210,10 +210,10 @@ void NelderMead::process()
             reduction();
         }
     }
-    
+
     orderTestPoints();
     setTestPointParameters(&testPoints[0]);
-    
+
     logged << "Evaluation of best point: " << testPoints[0].second << std::endl;
     sendLog(LogLevelDetailed);
 
@@ -226,9 +226,9 @@ NelderMead::NelderMead(std::vector<double *> newParamPtrs, std::vector<double> e
     rho = -0.5;
     sigma = 0.5;
     unlimited = false;
-    
+
     std::vector<double *>streamlinedPtrs;
-    
+
     for (int i = 0; i < newParamPtrs.size(); i++)
     {
         if (newParamPtrs[i] != NULL)
@@ -240,68 +240,68 @@ NelderMead::NelderMead(std::vector<double *> newParamPtrs, std::vector<double> e
             i--;
         }
     }
-    
+
     paramPtrs = streamlinedPtrs;
     evaluationFunction = score;
     evaluatingObject = object;
-    
+
     int testPointCount = (int)paramCount() + 1;
     testPoints.resize(testPointCount);
-    
+
     if (paramCount() == 0)
         return;
-    
+
     assert(paramCount() > 1);
-    
+
     for (int i = 0; i < testPoints.size(); i++)
     {
         testPoints[i].second = 0;
         testPoints[i].first.resize(paramCount());
-        
+
         logged << "Test point parameter " << i << ": ";
-        
+
         for (int j = 0; j < paramCount(); j++)
         {
             if (i == 0)
             {
                 testPoints[i].first[j] = *paramPtrs[j];
             }
-            
+
             if (i > 0)
             {
                 int minJ = i - 1;
                 double scale = 2;
-                
+
                 testPoints[i].first[j] = testPoints[0].first[j] + (j == minJ) * scale * expectedRanges[j];
             }
-            
+
             logged << testPoints[i].first[j] << ", " << std::endl;
         }
     }
-   
+
     logged << "Test point evaluations: ";
-    
+
     for (int i = 0; i < testPoints.size(); i++)
     {
         evaluateTestPoint(i);
         logged << testPoints[i].second << ", ";
     }
-    
+
     logged << std::endl;
-    
+
     std::vector<double> centroid = calculateCentroid();
     logged << "Starting centroid: " << std::endl;
-    
+
     for (int i = 0; i < centroid.size(); i++)
     {
         logged << centroid[i] << ", ";
     }
-    
+
     logged << std::endl;
-    
+
     sendLog(LogLevelDebug);
-    
-    
+
+
 }
 
 void NelderMead::sendLog(LogLevel priority)
@@ -310,4 +310,3 @@ void NelderMead::sendLog(LogLevel priority)
     logged.str("");
     logged.clear();
 }
-

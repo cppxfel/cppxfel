@@ -2,8 +2,8 @@
 // $Id: tclMatrix.h 12078 2011-11-30 22:09:07Z andrewross $
 //
 //  Copyright 1994, 1995
-//  Maurice LeBrun			mjl@dino.ph.utexas.edu
-//  Institute for Fusion Studies	University of Texas at Austin
+//  Maurice LeBrun                      mjl@dino.ph.utexas.edu
+//  Institute for Fusion Studies        University of Texas at Austin
 //
 //  Copyright (C) 2004  Maurice LeBrun
 //

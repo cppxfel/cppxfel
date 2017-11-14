@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -32,7 +32,7 @@
 #  define CALL_LIKE_HPUX 1
 #endif
 
-#if defined (__hpux) 
+#if defined (__hpux)
 #  define KNOWN_MACHINE
 #  define CALL_LIKE_HPUX 1
 #endif
@@ -154,7 +154,7 @@
 #ifndef NOUNISTD
 #  include <unistd.h>
 #else
-#  ifndef VMS 
+#  ifndef VMS
 #    ifndef _MSC_VER
 #      include <sys/file.h>     /* ESV, old Concentrix */ /* non-POSIX */
 #    endif
@@ -229,7 +229,7 @@
 #define O_TMP    0x0010       /**< i/o mode: scratch file */
 
 #define BYTE  0
-#define INT16 1   
+#define INT16 1
 #define INT32 6
 #define FLOAT32 2
 #define COMP32  3

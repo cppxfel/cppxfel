@@ -1,16 +1,16 @@
 /*
      w32mvs.h: function prototypes for w32mvs.c functions
-     Copyright (C) 2003  Alun Ashton     
+     Copyright (C) 2003  Alun Ashton
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -28,7 +28,7 @@
 /* Getopt for GNU.
    Copyright (C) 1987 Free Software Foundation, Inc.
 
-		       NO WARRANTY
+                       NO WARRANTY
 
   BECAUSE THIS PROGRAM IS LICENSED FREE OF CHARGE, WE PROVIDE ABSOLUTELY
 NO WARRANTY, TO THE EXTENT PERMITTED BY APPLICABLE STATE LAW.  EXCEPT
@@ -52,7 +52,7 @@ A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS) THIS
 PROGRAM, EVEN IF YOU HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGES, OR FOR ANY CLAIM BY ANY OTHER PARTY.
 
-		GENERAL PUBLIC LICENSE TO COPY
+                GENERAL PUBLIC LICENSE TO COPY
 
   1. You may copy and distribute verbatim copies of this source file
 as you receive it, in any medium, provided that you conspicuously and

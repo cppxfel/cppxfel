@@ -50,27 +50,27 @@ double minimizeParameter(double &step, double *param, double (*score)(void *obje
 double sum(vector<double> values);
 void regression_line(vector<boost::tuple<double, double, double> > values, double &intercept, double &gradient);
 double correlation_between_vectors(vector<double> *vec1,
-		vector<double> *vec2, vector<double> *weights, int exclude);
+                vector<double> *vec2, vector<double> *weights, int exclude);
 double correlation_between_vectors(vector<double> *vec1,
-		vector<double> *vec2, vector<double> *weights);
+                vector<double> *vec2, vector<double> *weights);
 double correlation_between_vectors(vector<double> *vec1,
-		vector<double> *vec2);
+                vector<double> *vec2);
 double correlation_through_origin(vector<double> *vec1,
-		vector<double> *vec2, vector<double> *weights = NULL);
+                vector<double> *vec2, vector<double> *weights = NULL);
 double least_squares_between_vectors(vector<double> *vec1,
-		vector<double> *vec2, double slope);
+                vector<double> *vec2, double slope);
 double gradient_between_vectors(vector<double> *vec1,
-		vector<double> *vec2);
+                vector<double> *vec2);
 double minimize_gradient_between_vectors(vector<double> *vec1,
-		vector<double> *vec2);
+                vector<double> *vec2);
 double weighted_mean(vector<double> *means, vector<double> *weights = NULL);
 double median(vector<double> *means);
 void histogram_gaussian(vector<double> *means, vector<int> *freq, double &mean, double &stdev);
 double least_squares_gaussian_fit(vector<double> *means,
-		vector<int> *freq);
+                vector<int> *freq);
 double standard_deviation(vector<double> *values, vector<double> *weights = NULL);
 double r_factor_between_vectors(vector<double> *vec1,
-		vector<double> *vec2, vector<double> *weights, double scale);
+                vector<double> *vec2, vector<double> *weights, double scale);
 double standard_deviation(vector<double> *values, vector<double> *weights, double mean);
 
 double cartesian_to_distance(double x, double y);

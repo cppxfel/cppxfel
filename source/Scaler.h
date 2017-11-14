@@ -31,7 +31,7 @@ private:
     bool isRefiningParameter(int paramNum);
     double stepForParam(int paramNum);
     MtzPtr pointerForMtz(MtzManager *pointer);
-    
+
     double xStepNorm(double step, int paramNum);
     double gNorm(int paramNum);
     double hessianGradientForParam(MtzPtr mtz, int paramNum);
@@ -39,7 +39,7 @@ private:
     void calculateGradients();
     void loadParametersFromMtzs();
     void loadParametersIntoMtzs();
-    
+
     int paramsPerImage();
     int parameterCount();
     scitbx::af::shared<double> g;
@@ -47,14 +47,14 @@ private:
     scitbx::af::shared<double> x;
     static Scaler *publicScaler;
 public:
-    
+
     static Scaler *getScaler(vector<MtzPtr> mtzs = vector<MtzPtr>(), MtzManager **grouped = NULL);
-    
+
     Scaler(vector<MtzPtr> mtzs, MtzManager **grouped);
     void minimizeRMerge();
     void minimizeRMergeLBFGS();
     void minimizeRMergeNelderMead();
-    
+
     bool mtzIsBeneficial(MtzPtr mtz);
     double evaluateForImage(MtzManager *mtz);
     double evaluateForImage(MtzPtr mtz);

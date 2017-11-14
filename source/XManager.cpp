@@ -34,7 +34,7 @@ XManager::XManager()
 
 XManager::~XManager()
 {
-    
+
 }
 
 void XManager::setFilenames(vector<std::string> newFiles)
@@ -48,49 +48,49 @@ void XManager::loadReflections(PartialityModel model)
     int fileCount = (int)filenames.size();
     double singleRefPartiality = 1 / (double)fileCount;
     int skipLines = FileParser::getKey("SKIP_LINES", 0);
-    
+
     logged << "First filename: " << filename;
     logged << " containing X file components: " << fileCount << std::endl;
 
     sendLog();
-    
+
     // set unit cell and space group
-    
+
     int spgNum = FileParser::getKey("SPACE_GROUP", 0);
-    
+
     if (spgNum == 0)
     {
         std::cout << "Please enter space group under keyword SPACE_GROUP using designated space group number" << std::endl;
         exit(1);
     }
-    
+
     vector<double> unitCell = FileParser::getKey("UNIT_CELL", vector<double>());
-    
+
     if (unitCell.size() == 0)
     {
         std::cout << "Please set unit cell under keyword UNIT_CELL followed by six parameters." << std::endl;
         exit(1);
     }
-    
+
     setUnitCell(unitCell);
-    
+
     setDefaultMatrix();
-    
+
     CCP4SPG *spg = ccp4spg_load_by_ccp4_num(spgNum);
     this->setLowGroup(spg);
-    
+
     for (int i = 0; i < fileCount; i++)
     {
         std::string filename = filenames[i];
         std::string contents = FileReader::get_file_contents(filename.c_str());
         vector<std::string> lines = FileReader::split(contents, '\n');
-        
+
         for (int j = skipLines; j < lines.size(); j++)
         {
             vector<std::string> components;
-            
+
             int success = FileReader::splitAtIndices(lines[j], lineSplitters, components);
-            
+
             if (success == 0 && reflections.size() == 0)
             {
                 std::cout << "Cannot parse line " << j << " of file, perhaps you need to skip some lines. Include SKIP_LINES keyword." << std::endl;
@@ -100,28 +100,28 @@ void XManager::loadReflections(PartialityModel model)
             {
                 continue;
             }
-            
+
             int h = atoi(components[0].c_str());
             int k = atoi(components[1].c_str());
             int l = atoi(components[2].c_str());
-            
+
             double intensity = atof(components[4].c_str());
             double sigi = atof(components[5].c_str());
         //    double correction = atof(components[11].c_str());
-            
+
       //      if (sigi < 0)
        //         continue;
-            
+
             int reflid = this->index_for_reflection(h, k, l, false);
-            
+
             Reflection *currentReflection = NULL;
-            
+
             this->findReflectionWithId(reflid, &currentReflection);
-            
+
             if (currentReflection == NULL)
             {
                 currentReflection = new Reflection();
-                
+
                 MillerPtr miller = MillerPtr(new Miller(this, h, k, l));
                 miller->setData(0, 0, 0, 0);
                 miller->setParent(currentReflection);
@@ -129,22 +129,22 @@ void XManager::loadReflections(PartialityModel model)
            //     miller->setPartialityModel(PartialityModelFixed);
                 miller->setFilename(filename);
                 currentReflection->addMiller(miller);
-                
+
                 currentReflection->calculateResolution(this);
-                
+
                 reflections.push_back(currentReflection);
                 sortLastReflection();
             }
-            
+
             MillerPtr miller = currentReflection->miller(0);
-            
+
             double rawInt = miller->getRawIntensity();
             double sigma = miller->getSigma();
-            
+
             double partiality = miller->getPartiality();
-            
+
             miller->setRawIntensity(rawInt + intensity);
-            
+
             miller->setSigma(sigma + sigi);
             miller->setPartiality(partiality + singleRefPartiality);
         }

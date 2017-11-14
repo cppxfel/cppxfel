@@ -17,12 +17,12 @@
 namespace FileReader
 {
     std::string get_file_contents(const char *filename);
-    
+
     vector<std::string> split(const std::string s, const std::string &delim);
     vector<std::string> &split(const std::string &s, char delim, vector<std::string> &elems);
     vector<std::string> split(const std::string &s, char delim);
     bool exists(const std::string& name);
-    
+
     int splitAtIndices(const std::string &s, vector<int> &positions, vector<std::string> &elems);
 };
 

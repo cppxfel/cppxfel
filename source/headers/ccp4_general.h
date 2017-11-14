@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -100,15 +100,15 @@ int ccp4printf(int level, char *format, ...);
 int ccp4fyp(int argc, char **argv);
 
 int ccp4fyp_cleanup(int ienv, char **envname, char **envtype, char **envext,
-		    char *logical_name, char *file_name, char *file_type,
-		    char *file_ext, char *env_file, char *def_file,
-		    char *dir, CCP4PARSERARRAY *parser);
+                    char *logical_name, char *file_name, char *file_type,
+                    char *file_ext, char *env_file, char *def_file,
+                    char *dir, CCP4PARSERARRAY *parser);
 
 int ccp4setenv(char *logical_name, char* value, char **envname,
-	       char **envtype, char **envext, int *ienv, int no_overwrt);
+               char **envtype, char **envext, int *ienv, int no_overwrt);
 
 int ccp4setenv_cleanup(char *file_ext, char *file_root, char *file_path,
-		       char *file_name);
+                       char *file_name);
 
 int ccpexists(char *filename);
 

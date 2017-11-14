@@ -31,25 +31,25 @@ private:
         double operator* (Proxy x) { return a.components[idx] * x.a.components[idx]; }
         double operator*= (double x) { a.components[idx] *= x; return a.components[idx]; }
         double operator*= (Proxy x) { a.components[idx] *= x.a.components[idx]; return a.components[idx]; }
-        
+
     };
-    
+
     MatrixPtr unitCell;
     MatrixPtr rotation;
     double eulerA;
     double eulerB;
     double eulerC;
-    
+
     static MatrixPtr identityMatrix;
 public:
     double components[16];
-    
+
     // for SPEEDY CALCULATIONS when you need an identity pointer. Don't change it or you'll mess everyone else up.
     static MatrixPtr getIdentityPtr()
     {
         return identityMatrix;
     }
-    
+
     double trace();
     bool isIdentity();
     MatrixPtr getNegativeCopy();
@@ -68,7 +68,7 @@ public:
     cctbx::miller::index<double> multiplyIndex(cctbx::miller::index<> *index);
     static void symmetryOperatorsForSpaceGroup(std::vector<MatrixPtr> *matrices, CSym::CCP4SPG *spaceGroup, double a, double b, double c, double alpha, double beta, double gamma);
     static MatrixPtr matrixFromEulerAngles(double theta, double phi, double psi);
-    
+
     void translate(double x, double y, double z);
     void rotateHK(double hRot, double kRot);
     void rotateABC(MatrixPtr oldMatrix, double aRot, double bRot, double cRot);
@@ -91,14 +91,14 @@ public:
     void scaleUnitCellAxes(double aScale, double bScale, double cScale);
     void setComplexMatrix(MatrixPtr unitCell, MatrixPtr rotation);
     void maxMillers(int (&millers)[3], double maxResolution);
-    
+
 ;
     void rotate2D(double angle);
     void translation(double **vector);
-    
+
     double getEwaldSphere(vec *vector);
     double getEwaldSphereNoMatrix(vec index);
-    
+
     void eulerAngles(double *theta, double *phi, double *psi, bool force = false);
     double similarityToRotationMatrix(MatrixPtr mat2, double tolerance, bool force = false);
     void unitCellLengths(double **lengths);
@@ -117,21 +117,21 @@ public:
     {
         if (unitCell)
             return true;
-        
+
         return false;
     }
-    
+
     MatrixPtr getRotation()
     {
         return rotation;
     }
-    
+
     MatrixPtr getUnitCell()
     {
         return unitCell;
     }
-    
-    
+
+
     double determinant();
     Matrix operator*=(Matrix &b);
     Matrix operator*(Matrix &b);

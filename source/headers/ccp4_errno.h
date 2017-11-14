@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -18,7 +18,7 @@
 */
 /** @file ccp4_errno.h
  *  Header file for error handling routines
- *  base error codes on system errors. 
+ *  base error codes on system errors.
  */
 
 #ifndef __CCP4_ERROR_GUARD
@@ -37,7 +37,7 @@
 #ifndef CCP4_ERRSETLEVEL
 #define CCP4_ERRSETLEVEL(y,x) ((y) & (~CCP4_ERRLEVEL(0xf)) | CCP4_ERRLEVEL(x)))
 #endif
-#ifndef CCP4_ERRGETSYS   
+#ifndef CCP4_ERRGETSYS
 #define CCP4_ERRGETSYS(x)   (((x)>>24)&0xfff)
 #endif
 #ifndef CCP4_ERRGETLEVEL
@@ -60,7 +60,7 @@
 #define CCP4_COUNT(x) sizeof(x)/sizeof(x[0])
 
 /** @global ccp4_errno: global variable that stores the error last error
- *           code from the ccp4 libraries 
+ *           code from the ccp4 libraries
  * | 12 bits - library | 4 bits - level | 16 bits - code |
  *
  *  associated macros
@@ -71,7 +71,7 @@
  *    CCP4_ERR_MAP   4     map io
  *    CCP4_ERR_UTILS 5     utility routines
  *    CCP4_ERR_PARS  6     parser routines
- *    CCP4_ERR_SYM   7     csymlib 
+ *    CCP4_ERR_SYM   7     csymlib
  *
  * and bit manipulation
  *    CCP4_ERRSYSTEM   system mask for setting
@@ -84,10 +84,10 @@
  * error levels
  *    0  Success
  *    1  Informational
- *    2  Warning 
+ *    2  Warning
  *    3  Error
  *    4  Fatal
- */ 
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -114,7 +114,7 @@ void ccp4_error( const char *);
  *  The returned string is statically allocated in the
  *  library_err.c file and should not be freed.
  * @param error code (int)
- * @return const pointer to error message (const char *) 
+ * @return const pointer to error message (const char *)
  */
 const char *ccp4_strerror( int);
 
@@ -134,7 +134,7 @@ void ccp4_fatal(const char *);
  *  differently.
  * @param iverb If >= 0 then set the verbosity level to the
  *  value of iverb. If < 0 (by convention -1) then report
- *  current level. 
+ *  current level.
  * @return current verbosity level
  */
 int ccp4_liberr_verbosity(int iverb);
@@ -145,11 +145,11 @@ int ccp4_liberr_verbosity(int iverb);
  *  See error codes above for levels and systems.
  *  A callback with prototype void function(void)
  *  may also be passed to the routine.
- *  Note: FATAL calls exit(1). 
+ *  Note: FATAL calls exit(1).
  *  If ccp4_liberr_verbosity returns 0, then ccp4_signal sets
  *  ccp4_errno and returns without doing anything else.
  * @param error code (int)
- * @param message (const char * const) 
+ * @param message (const char * const)
  * @param callback (point to routine void (*)(void) )
  * @return void
  */

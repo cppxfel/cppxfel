@@ -132,12 +132,12 @@ typedef enum
 
 typedef enum
 {
-	MaskForeground = 2, MaskBackground = 1, MaskNeither = 0
+        MaskForeground = 2, MaskBackground = 1, MaskNeither = 0
 } Mask;
 
 typedef enum
 {
-	RFactorNone, RFactorTypeMerge, RFactorTypePim, RFactorTypeMeas,
+        RFactorNone, RFactorTypeMerge, RFactorTypePim, RFactorTypeMeas,
 } RFactorType;
 
 typedef enum
@@ -202,7 +202,7 @@ typedef boost::shared_ptr<std::mutex> MutexPtr;
 typedef boost::shared_ptr<UnitCellLattice> UnitCellLatticePtr;
 
 typedef boost::variant<double, double, std::string, bool, int,
-		vector<double>, vector<int> > ParameterVariant;
+                vector<double>, vector<int> > ParameterVariant;
 typedef std::map<std::string, ParameterVariant> ParametersMap;
 typedef void (*ParserFunction)(ParametersMap *, std::string, std::string);
 typedef std::map<std::string, ParserFunction> ParserMap;
@@ -210,9 +210,9 @@ typedef std::pair<CommonLinePtr, CommonLinePtr> CommonLinePair;
 typedef std::pair<CommonCirclePtr, CommonCirclePtr> CommonCirclePair;
 
 typedef double (StatisticsFunction)(MtzManager *, MtzManager *, int, int *,
-		double *, double, double, bool, bool);
+                double *, double, double, bool, bool);
 typedef double (RFactorFunction)(RFactorType, MtzManager *, int *, double *,
-		double, double, bool);
+                double, double, bool);
 typedef std::pair<vec, double> VectorDistance;
 typedef std::pair<std::pair<SpotVectorPtr, VectorDistance>, double> Match;
 
@@ -224,16 +224,16 @@ typedef void (*Setter)(void *, double newValue);
 
 typedef enum
 {
-	WeightTypeAverage,
-	WeightTypePartiality,
-	WeightTypePartialitySigma,
-	WeightTypeISigI,
-	WeightTypePartialityCorrelation
+        WeightTypeAverage,
+        WeightTypePartiality,
+        WeightTypePartialitySigma,
+        WeightTypeISigI,
+        WeightTypePartialityCorrelation
 } WeightType;
 
 typedef enum
 {
-	PartialityModelNone, PartialityModelSimple, PartialityModelScaled, PartialityModelFixed, PartialityModelBinary
+        PartialityModelNone, PartialityModelSimple, PartialityModelScaled, PartialityModelFixed, PartialityModelBinary
 } PartialityModel;
 
 #endif /* PARAMETERS_H_ */

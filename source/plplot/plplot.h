@@ -47,7 +47,7 @@
 // allows you to request certain behavior by defining certain symbols
 // before inclusion.  At the moment the only one is:
 //
-// #define DOUBLE	or..
+// #define DOUBLE       or..
 // #define PL_DOUBLE
 //
 // This causes PLplot to use doubles instead of floats.  Use the type
@@ -529,7 +529,7 @@ typedef struct
 typedef plf2ops_t * PLF2OPS;
 
 //--------------------------------------------------------------------------
-//		BRAINDEAD-ness
+//              BRAINDEAD-ness
 //
 // Some systems allow the Fortran & C namespaces to clobber each other.
 // For PLplot to work from Fortran on these systems, we must name the the
@@ -538,11 +538,11 @@ typedef plf2ops_t * PLF2OPS;
 // yet reversible to those who abhor my solution, I have done the
 // following:
 //
-//	The C-language bindings are actually different from those
-//	described in the manual.  Macros are used to convert the
-//	documented names to the names used in this package.  The
-//	user MUST include plplot.h in order to get the name
-//	redefinition correct.
+//      The C-language bindings are actually different from those
+//      described in the manual.  Macros are used to convert the
+//      documented names to the names used in this package.  The
+//      user MUST include plplot.h in order to get the name
+//      redefinition correct.
 //
 // Sorry to have to resort to such an ugly kludge, but it is really the
 // best way to handle the situation at present.  If all available
@@ -794,7 +794,7 @@ typedef plf2ops_t * PLF2OPS;
 #endif // __PLSTUBS_H__
 
 //--------------------------------------------------------------------------
-//		Function Prototypes
+//              Function Prototypes
 //--------------------------------------------------------------------------
 
 #ifdef __cplusplus
@@ -2008,7 +2008,7 @@ c_plxormod( PLBOOL mode, PLBOOL *status );
 
 
 //--------------------------------------------------------------------------
-//		Functions for use from C or C++ only
+//              Functions for use from C or C++ only
 //--------------------------------------------------------------------------
 
 // Returns a list of file-oriented device names and their menu strings

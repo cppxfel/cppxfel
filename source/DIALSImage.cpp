@@ -43,12 +43,12 @@ void DIALSImage::setCrystalParameters(int spaceGroupNum, double params[6])
     FileParser::setKey("SPACE_GROUP", spaceGroupNum);
 
     std::vector<double> unitCell;
-    
+
     for (int i = 0; i < 6; i++)
     {
         unitCell.push_back(params[i]);
     }
-    
+
     FileParser::setKey("UNIT_CELL", unitCell);
 }
 
@@ -56,36 +56,36 @@ void DIALSImage::setCrystalParameters(int spaceGroupNum, double params[6])
 vec3<double> DIALSImage::cppxfelVecToScitbxVec3(vec hkl)
 {
     double radius = 1 / getWavelength();
-    
+
     hkl.l += radius;
-    
+
     return vec3<double>(hkl.h, hkl.k, hkl.l);
 }
 
 vec DIALSImage::scitbxVec3ToCppxfelVec(vec3<double> hkl3)
 {
     double radius = 1 / getWavelength();
-    
+
     hkl3[2] -= radius;
-    
+
     return new_vector(hkl3[0], hkl3[1], hkl3[2]);
 }
 
 std::pair<double, double> DIALSImage::reciprocalCoordinatesToPixels(vec hkl)
 {
     vec3<double> scitbxVec3 = cppxfelVecToScitbxVec3(hkl);
-    
+
     coord_type ray = dxtbxDetector->get_ray_intersection(scitbxVec3);
-    
+
     // first of ray pair is panel number
     // second of ray pair is currently mm
-    
+
     int panel_num = ray.first;
-    
+
     // find true pixel intersection off panel num
-    
+
     vec2<double> pix = (*dxtbxDetector)[panel_num].get_ray_intersection_px(scitbxVec3);
-    
+
     return std::make_pair(pix[0], pix[1]);
 }
 
@@ -93,15 +93,15 @@ void DIALSImage::addSpots(std::vector<vec3<double> > rays)
 {
     double radius = 1 / getWavelength();
     rays.push_back(vec3<double>(0, 0, radius));
-    
+
     for (int i = 0; i < rays.size(); i++)
     {
         vec3<double> ray = rays[i];
         vec hkl = scitbxVec3ToCppxfelVec(ray);
-        
+
         SpotPtr spot = SpotPtr(new Spot(shared_from_this()));
         spot->setXYFromEstimatedVector(hkl);
-        
+
         spots.push_back(spot);
     }
 }
@@ -110,10 +110,10 @@ IndexingSolutionStatus DIALSImage::tryIndexingSolution(IndexingSolutionPtr solut
 {
     if (solutionPtr->spotVectorCount() < minimumSolutionNetworkCount)
         return IndexingSolutionTrialFailure;
-    
+
     MatrixPtr solutionMatrix = solutionPtr->createSolution();
     bool similar = checkIndexingSolutionDuplicates(solutionMatrix);
-  
+
     if (!similar)
     {
         solutions.push_back(solutionMatrix);
@@ -130,17 +130,17 @@ bool DIALSImage::checkIndexingSolutionDuplicates(MatrixPtr newSolution, bool exc
     for (int i = 0; i < solutions.size() - excludeLast; i++)
     {
         bool similar = IndexingSolution::matrixSimilarToMatrix(newSolution, solutions[i], true);
-        
+
         if (similar)
             return true;
     }
-    
+
     return false;
 }
 
 void DIALSImage::getSolution(int i, double *matrixParams[9])
 {
     MatrixPtr solution = solutions[i];
-    
+
     solution->sensibleComponents(matrixParams);
 }

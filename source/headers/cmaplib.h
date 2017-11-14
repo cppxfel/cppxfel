@@ -4,13 +4,13 @@
 
      This library is free software: you can redistribute it and/or
      modify it under the terms of the GNU Lesser General Public License
-     version 3, modified in accordance with the provisions of the 
+     version 3, modified in accordance with the provisions of the
      license to address the requirements of UK law.
- 
-     You should have received a copy of the modified GNU Lesser General 
-     Public License along with this library.  If not, copies may be 
+
+     You should have received a copy of the modified GNU Lesser General
+     Public License along with this library.  If not, copies may be
      downloaded from http://www.ccp4.ac.uk/ccp4license.php
- 
+
      This program is distributed in the hope that it will be useful,
      but WITHOUT ANY WARRANTY; without even the implied warranty of
      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -29,16 +29,16 @@
 
 <ul>
 <li>cmaplib.h - contains details of the C/C++ API
-<li>cmap_data.h     
-<li>cmap_header.h   
-<li>cmap_skew.h     
-<li>cmap_errno.h    
-<li>cmap_labels.h   
-<li>cmap_stats.h    
+<li>cmap_data.h
+<li>cmap_header.h
+<li>cmap_skew.h
+<li>cmap_errno.h
+<li>cmap_labels.h
+<li>cmap_stats.h
 </ul>
 
  *  @section cmap_overview Overview
- 
+
   Functions defining the C-level API for accessing CCP4 map files.
 
  */
@@ -172,7 +172,7 @@ void ccp4_cmap_get_origin(const CMMFile *mfile, int *origin);
 void ccp4_cmap_get_order(const CMMFile *mfile, int *axes_order);
 void ccp4_cmap_get_dim(const CMMFile *mfile, int *map_dim);
 int ccp4_cmap_get_spacegroup(const CMMFile *mfile);
-void ccp4_cmap_get_mapstats(const CMMFile *mfile, float *min, float* max, 
+void ccp4_cmap_get_mapstats(const CMMFile *mfile, float *min, float* max,
                            double *mean, double *rms);
 
 /* set the header parameters */

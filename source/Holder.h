@@ -30,8 +30,8 @@ using cctbx::sgtbx::reciprocal_space::asu;
 class Reflection
 {
 private:
-	vector<MillerPtr> millers;
-	double resolution;
+        vector<MillerPtr> millers;
+        double resolution;
     static space_group spaceGroup;
     static unsigned char spgNum;
     static space_group_type spgType;
@@ -47,61 +47,61 @@ private:
 public:
     Reflection(float *unitCell = NULL, CSym::CCP4SPG *group = NULL);
     void setUnitCell(float *unitCell);
-	virtual ~Reflection();
+        virtual ~Reflection();
 
     MillerPtr acceptedMiller(int num);
-	MillerPtr miller(int i);
+        MillerPtr miller(int i);
     void printDescription();
-	void addMiller(MillerPtr miller);
+        void addMiller(MillerPtr miller);
     void addMillerCarefully(MillerPtr miller);
-	int millerCount();
-	Reflection *copy(bool copyMillers = false);
-    
-	static int indexForReflection(int h, int k, int l, CSym::CCP4SPG *lowspgroup, bool inverted);
+        int millerCount();
+        Reflection *copy(bool copyMillers = false);
+
+        static int indexForReflection(int h, int k, int l, CSym::CCP4SPG *lowspgroup, bool inverted);
     static int reflectionIdForCoordinates(int h, int k, int l);
-    
+
     int checkOverlaps();
     int checkSpotOverlaps(std::vector<SpotPtr> *spots, bool actuallyDelete = true);
     void reflectionDescription();
-	void calculateResolution(MtzManager *mtz);
-	void clearMillers();
+        void calculateResolution(MtzManager *mtz);
+        void clearMillers();
     void removeMiller(int index);
 
-	double meanIntensityWithExclusion(std::string *filename, int start = 0, int end = 0);
-	double meanIntensity(bool withCutoff = true, int start = 0, int end = 0);
-	double meanSigma();
-	double meanSigma(bool friedel);
-	double meanPartiality(bool withCutoff = true);
-	double mergedIntensity(WeightType weighting);
+        double meanIntensityWithExclusion(std::string *filename, int start = 0, int end = 0);
+        double meanIntensity(bool withCutoff = true, int start = 0, int end = 0);
+        double meanSigma();
+        double meanSigma(bool friedel);
+        double meanPartiality(bool withCutoff = true);
+        double mergedIntensity(WeightType weighting);
     double meanWeight(bool cutoff = true);
     double rMergeContribution(double *numerator, double *denominator);
 
-	bool betweenResolutions(double lowAngstroms, double highAngstroms);
-	bool anyAccepted();
-	int acceptedCount();
-	int rejectCount();
+        bool betweenResolutions(double lowAngstroms, double highAngstroms);
+        bool anyAccepted();
+        int acceptedCount();
+        int rejectCount();
 
-	void merge(WeightType weighting, double *intensity, double *sigma, bool calculateRejections);
-	double standardDeviation(WeightType weighting);
-    
+        void merge(WeightType weighting, double *intensity, double *sigma, bool calculateRejections);
+        double standardDeviation(WeightType weighting);
+
     void detailedDescription();
     double observedPartiality(MtzManager *reference, Miller *miller);
 
     double mergeSigma();
-    
+
     int reflectionIdForMiller(cctbx::miller::index<> cctbxMiller);
     void generateReflectionIds();
-    
+
     asu *getAsymmetricUnit()
     {
         return &asymmetricUnit;
     }
-    
+
     static space_group *getSpaceGroup()
     {
         return &spaceGroup;
     }
-    
+
     void incrementAmbiguity();
     static int ambiguityCount();
     static MatrixPtr matrixForAmbiguity(int i);
@@ -112,26 +112,26 @@ public:
     void resetFlip();
     void setFlip(int i);
     void setFlipAsActiveAmbiguity();
-    
+
     int getActiveAmbiguity()
     {
         return activeAmbiguity;
     }
-    
+
     void setActiveAmbiguity(int newAmbiguity)
     {
         activeAmbiguity = newAmbiguity;
     }
 
-	const vector<MillerPtr>& getMillers() const
-	{
-		return millers;
-	}
+        const vector<MillerPtr>& getMillers() const
+        {
+                return millers;
+        }
 
-	void setMillers(const vector<MillerPtr>& millers)
-	{
-		this->millers = millers;
-	}
+        void setMillers(const vector<MillerPtr>& millers)
+        {
+                this->millers = millers;
+        }
 
     long unsigned int getReflId()
     {
@@ -142,17 +142,17 @@ public:
         */
         return reflectionIds[activeAmbiguity];
     }
-    
-	double getResolution() const
-	{
-		return resolution;
-	}
 
-	void setResolution(double resolution)
-	{
-		this->resolution = resolution;
-	}
-    
+        double getResolution() const
+        {
+                return resolution;
+        }
+
+        void setResolution(double resolution)
+        {
+                this->resolution = resolution;
+        }
+
     static MatrixPtr getFlipMatrix(int i);
 };
 

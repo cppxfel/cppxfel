@@ -23,9 +23,9 @@ private:
 public:
     XManager();
     ~XManager();
-    
+
     void setFilenames(vector<std::string> newFiles);
-    
+
     virtual void loadReflections(PartialityModel model);
 };
 
